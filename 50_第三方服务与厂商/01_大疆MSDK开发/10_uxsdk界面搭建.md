@@ -6,7 +6,7 @@ tags:
   - 生态/移动
   - 生态/大疆MSDK
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 source: SampleCode-V5 android-sdk-v5-uxsdk / DefaultLayoutActivity.java
 ---
 
@@ -14,7 +14,7 @@ source: SampleCode-V5 android-sdk-v5-uxsdk / DefaultLayoutActivity.java
 
 ## 一、功能说明
 
-`android-sdk-v5-uxsdk` 是 DJI 提供的**现成 UI 组件库**：图传画面、相机控制、云台控制、姿态仪、小地图、系统状态面板、设置面板…… 全部是封装好的 View。它把「界面 + MSDK 调用」一起做好了，你只负责摆位置和联动。
+`android-sdk-v5-uxsdk` 是 DJI 提供的**==UI 组件库==**：图传画面、相机控制、云台控制、姿态仪、小地图、系统状态面板、设置面板…… 全部是封装好的 View。它把「界面 + MSDK 调用」一起做好了，你只负责摆位置和联动。
 
 适用场景：
 
@@ -22,9 +22,10 @@ source: SampleCode-V5 android-sdk-v5-uxsdk / DefaultLayoutActivity.java
 - 不想自己处理相机参数、曝光、对焦这些琐碎交互
 - 需要地图、姿态仪、状态栏等标准组件
 
-代价：定制自由度低，Widget 内部逻辑不容易改（但可以直接改 uxsdk 源码，因为它是本地 module）。
+> [!NOTE] uxsdk 的代价是定制自由度
+> Widget 内部逻辑封装得比较死，改样式容易、改行为难。好在它是==本地 module==——可以直接改源码，不需要等官方发版。
 
-## 二、相关 API / 组件
+## 二、相关组件
 
 | Widget | 包 | 作用 |
 |--------|-----|------|
@@ -48,7 +49,7 @@ source: SampleCode-V5 android-sdk-v5-uxsdk / DefaultLayoutActivity.java
 
 ### 1. 引入模块
 
-示例工程把 uxsdk 作为**本地 library module**：
+示例工程把 uxsdk 作为**==本地 module==**引入，不是从 Maven 拉依赖：
 
 ```groovy
 // settings.gradle
@@ -59,7 +60,10 @@ project(':uxsdk').projectDir = new File(rootProject.projectDir, '../android-sdk-
 implementation project(':uxsdk')
 ```
 
-uxsdk 依赖 RxJava3、MapLibre、Lottie 等，按它自己的 `build.gradle` 补齐即可。
+uxsdk 依赖 ==RxJava3==、MapLibre、Lottie 等，按它自己的 `build.gradle` 补齐即可。漏一个的表现是编译期报 `ClassNotFound` 或运行期 `NoClassDefFoundError`。
+
+> [!TIP] 引入失败先看依赖树
+> uxsdk 的传递依赖不会自动全给到你，报错往往指向一个你没直接引用的类。执行 `./gradlew :app:dependencies` 看依赖树，按 uxsdk 自己的 `build.gradle` 补上缺的那几个，比逐个试快。
 
 ### 2. 最小布局：一路画面
 
@@ -90,6 +94,22 @@ uxsdk 依赖 RxJava3、MapLibre、Lottie 等，按它自己的 `build.gradle` �
 ```
 
 ### 3. Java 初始化与联动
+
+Widget 自己完成与 MSDK 的通信，你只负责绑定、指定画面源、转发生命周期。
+
+```mermaid
+sequenceDiagram
+    participant A as FlightActivity
+    participant W as MapWidget
+    participant F as FPVWidget
+    A->>W: onCreate()
+    A->>F: updateVideoSource(LEFT_OR_MAIN)
+    A->>F: setSurfaceViewZOrderOnTop(true)
+    A->>W: onResume()
+    A->>W: onPause()
+    A->>W: onDestroy()
+    Note over W: 四个生命周期都转发，地图才刷新
+```
 
 ```java
 import android.os.Bundle;
@@ -141,15 +161,33 @@ public class FlightActivity extends AppCompatActivity {
 
 ### 4. 直接抄官方完整页面
 
-`android-sdk-v5-uxsdk/src/main/java/dji/v5/ux/sample/showcase/defaultlayout/DefaultLayoutActivity.java`（约 450 行，**纯 Java**）就是一套完整的「主画面 + 画中画 + 顶部状态条 + 相机控制 + 云台微调 + 小地图 + 模拟器面板」实现，配套布局在同目录 `res/layout` 下。
+官方给了一份完整页面可以直接抄：==DefaultLayoutActivity==（约 450 行，**纯 Java**），实现了「主画面 + 画中画 + 顶部状态条 + 相机控制 + 云台微调 + 小地图 + 模拟器面板」，配套布局在同目录 `res/layout` 下。
 
-示例工程里还有一份「抄到 sample 模块再改」的版本：`dji/sampleV5/aircraft/pages/DroneViewActivity.java`，带中文注释，更适合当模板。
+示例工程里还有一份「抄到 sample 模块再改」的版本：`DroneViewActivity.java`，带中文注释，更适合当模板。
+
+> [!TIP] 先跑通官方页面，再删不需要的部分
+> 自己从零搭一套 Widget 组合，最容易卡在"某个控件不显示"这种问题上。更快的路径是把 `DefaultLayoutActivity` 整个跑通，确认环境没问题之后，再逐个删掉用不到的面板。
 
 ## 四、注意事项
 
-1. **主题与屏幕方向**：Activity 用 `Theme.NoTitleBar.Fullscreen` + 横屏 + `configChanges="orientation|screenSize|keyboardHidden"`，否则旋转时页面重建、画面闪。
+1. **主题与屏幕方向**：Activity 用 `Theme.NoTitleBar.Fullscreen` + 横屏 + `==configChanges==="orientation|screenSize|keyboardHidden"`，否则旋转时页面重建、画面闪。
 2. **Widget 依赖 Activity 生命周期**：`MapWidget` 必须在 `onCreate/onResume/onPause/onDestroy` 里调用对应方法，否则地图不刷新或泄漏。
 3. **画面源切换只调 `updateVideoSource`**，不要自己去操作 Surface。
-4. **uxsdk 的 Widget 是 Kotlin 写的**（少数是 Java），Java 调用时注意 getter 是 `getXxx()` 形式；`FPVWidget.getWidgetModel()` 返回 `FPVWidgetModel`（Kotlin 的 `val widgetModel` 在 Java 侧就是 getter）。
-5. **想改样式**：uxsdk 资源都带 `uxsdk_` 前缀，可在自己工程里覆盖同名资源。
-6. **不建议同时手写 Surface 显示和 FPVWidget**：两者抢同一路相机容易黑屏，选一种即可。
+4. **uxsdk 的 Widget 是 Kotlin 写的**（少数是 Java），Java 调用时注意 getter 是 `getXxx()` 形式；`FPVWidget.==getWidgetModel()==` 返回 `FPVWidgetModel`（Kotlin 的 `val widgetModel` 在 Java 侧就是 getter）。
+5. **想改样式**：uxsdk 资源都带 `==uxsdk_==` 前缀，可在自己工程里覆盖同名资源。
+6. **不建议同时手写 Surface 显示和 FPVWidget**：两者抢同一路相机容易==黑屏==，选一种即可。
+
+> [!WARNING] 旋转屏幕会重建 Activity
+> 少了 `configChanges` 里的 `orientation|screenSize|keyboardHidden`，横竖屏切换时 Activity 会销毁重建：画面黑一下、Widget 重新初始化、正在录的像可能中断。
+>
+> 三个值缺一不可——`orientation` 管方向，`screenSize` 管 Android 13+ 的尺寸变化，`keyboardHidden` 管外接键盘收起。
+
+> [!WARNING] 生命周期不转发，地图不刷新
+> `MapWidget` 依赖宿主 Activity 的生命周期方法。四个回调少转一个，表现是地图不刷新、或者退出后仍然持有资源造成泄漏。
+>
+> 这不是"建议"，是硬依赖：Widget 内部没有别的方式感知页面状态。
+
+> [!WARNING] 两种画面方案不要混用
+> 同时手写 `SurfaceView` 贴图和用 `FPVWidget`，两者会抢同一路相机的输出。结果通常是==黑屏==，而且两边单独看都没问题，很难定位。
+>
+> 选一种：要完全自绘就用 `ICameraStreamManager`（见 [[05_图传画面显示]]），要现成界面就用 uxsdk。

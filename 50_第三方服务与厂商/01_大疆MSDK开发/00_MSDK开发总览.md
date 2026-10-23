@@ -6,7 +6,7 @@ tags:
   - 生态/移动
   - 生态/大疆MSDK
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 source: DJI Mobile SDK V5 官方 API 文档 + SampleCode-V5（MSDK 5.18.0）
 ---
 
@@ -17,7 +17,7 @@ source: DJI Mobile SDK V5 官方 API 文档 + SampleCode-V5（MSDK 5.18.0）
 
 ## 一、先建立心智模型
 
-MSDK V5 与 V4 最大的区别：**V4 是「对象 + 方法」**（`aircraft.getFlightController().startTakeoff()`），**V5 是「键值 + 管理器」**。
+MSDK V5 与 V4 最大的区别：**V4 是「对象 + 方法」**（`aircraft.getFlightController().startTakeoff()`），**V5 是「==键值 + 管理器==」**。
 
 V5 只有三类东西：
 
@@ -27,7 +27,7 @@ V5 只有三类东西：
 | 管理器（Manager） | `MediaDataCenter`、`WaypointMissionManager`、`RTKCenter`… | 任务型、有状态的复杂功能 | 单例，自带监听器注册/注销 |
 | 现成 UI（uxsdk） | `FPVWidget`、`CameraControlsWidget`… | 直接搭出「Pilot 风格」界面 | 可选模块，Widget 内部替你调 MSDK |
 
-日常开发 90% 的时间在跟 Key 打交道。记住四个动作：
+日常开发 ==90%== 的时间在跟 Key 打交道。记住四个动作：
 
 ```java
 KeyManager.getInstance().getValue(key);                 // 同步读缓存
@@ -56,18 +56,26 @@ KeyManager.getInstance().listen(key, holder, listener);  // 监听变化
 
 以「起飞并显示画面」为例：
 
-```text
-Application.onCreate
-  └─ SDKManager.init(context, callback)
-       └─ onInitProcess(INITIALIZE_COMPLETE) → registerApp()
-            └─ onRegisterSuccess → onProductConnect(productId)
-                 ├─ KeyManager.listen(ProductKey.KeyProductType)   // 确认机型
-                 ├─ KeyManager.listen(FlightControllerKey.KeyConnection) // 飞控是否在线
-                 ├─ FPVWidget / VideoStreamManager 订阅画面
-                 └─ performAction(KeyStartTakeoff)                 // 起飞
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant SDK as SDKManager
+    participant DJI as DJI 服务器
+    participant AC as 飞行器
+    App->>SDK: init(context, callback)
+    SDK->>SDK: onInitProcess(INITIALIZE_COMPLETE)
+    SDK->>DJI: registerApp()
+    DJI-->>SDK: onRegisterSuccess
+    SDK->>AC: 产品连接
+    AC-->>App: onProductConnect(productId)
+    App->>AC: listen(KeyProductType) 确认机型
+    App->>AC: listen(KeyConnection) 飞控是否在线
+    App->>AC: FPVWidget / VideoStreamManager 订阅画面
+    App->>AC: performAction(KeyStartTakeoff) 起飞
 ```
 
-**顺序不能颠倒**：注册成功前所有 Key 都拿不到值；产品未连接前 `getValue` 只会返回默认值。
+> [!IMPORTANT] 顺序不能颠倒
+> ==注册成功前==所有 Key 都拿不到值；产品未连接前 `getValue` 只会返回默认值。这不是报错，是静默返回——排查时容易误判成 Key 名字写错。
 
 ## 四、版本与依赖
 
@@ -84,7 +92,7 @@ deps.wpmzSdk = 'com.dji:wpmzsdk:1.0.5.1'                        // KMZ 航线文
 
 ## 五、机型差异是最大的坑
 
-同一套 API 在不同机型上能力不同，V5 的做法是**运行时查询**而不是文档列表：
+同一套 API 在不同机型上能力不同，V5 的做法是==运行时查询==而不是文档列表：
 
 | 能力 | 查询方式 |
 |------|---------|
@@ -93,7 +101,10 @@ deps.wpmzSdk = 'com.dji:wpmzsdk:1.0.5.1'                        // KMZ 航线文
 | 限高/限远的合法范围 | `FlightControllerKey.KeyHeightLimitRange` / `KeyDistanceLimitRange`（`IntValueConfig`） |
 | 云台可转角度 | 文档建议手动转到极限后读 `KeyGimbalAttitude` |
 
-写业务代码时**先查范围再设置**，不要硬编码数值。
+写业务代码时**先查范围再设置**，不要==硬编码==数值。
+
+> [!IMPORTANT] 先查范围，再设置
+> 同一个 Key 在不同机型上的合法范围不同，硬编码 `120` 米这类值在新机型上可能直接被拒绝，或者被静默截断成上限。正确做法是先读 `XxxRange` 拿到 `IntValueConfig`，用它给出的上下界做钳制。
 
 ## 六、文档没写、但 SDK 里确实存在的接口
 
@@ -110,7 +121,8 @@ deps.wpmzSdk = 'com.dji:wpmzsdk:1.0.5.1'                        // KMZ 航线文
 | `WPMZManager` | 只在 wpmz 模块 | 实际在 `com.dji.wpmzsdk.manager`，需单独依赖 `com.dji:wpmzsdk:1.0.5.1` |
 | `ProductType` | 未写包名 | 实际在 `dji.sdk.keyvalue.value.product` |
 
-> 遇到「文档里找不到」的 API，直接在 Gradle 缓存里找 `dji-sdk-v5-aircraft-provided-5.18.0.jar`，用 `javap -classpath <jar> <全限定类名>` 看真实签名，比翻文档快。
+> [!TIP] 文档里找不到的 API 怎么查
+> 直接在 Gradle 缓存里找 `dji-sdk-v5-aircraft-provided-5.18.0.jar`，用 ==javap== 看真实签名：`javap -classpath <jar> <全限定类名>`，比翻文档快。
 
 ## 七、参考源码位置
 

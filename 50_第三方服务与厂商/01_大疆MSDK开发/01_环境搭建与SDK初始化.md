@@ -6,7 +6,7 @@ tags:
   - 生态/移动
   - 生态/大疆MSDK
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 source: SampleCode-V5 / DJISDKManager / ISDKManager_SDKManagerCallback
 ---
 
@@ -14,7 +14,7 @@ source: SampleCode-V5 / DJISDKManager / ISDKManager_SDKManagerCallback
 
 ## 一、功能说明
 
-把 MSDK 接进一个 Android 工程，跑通「初始化 → 注册 → 产品连接」三步。注册成功后，Key 才能取到真实数据，所有飞行功能才可用。
+把 MSDK 接进一个 Android 工程，跑通「==初始化 → 注册 → 产品连接==」三步。注册成功后，Key 才能取到真实数据，所有飞行功能才可用。
 
 ## 二、相关 API
 
@@ -37,8 +37,7 @@ source: SampleCode-V5 / DJISDKManager / ISDKManager_SDKManagerCallback
 | `dji.v5.network.DJINetworkManager` | `addNetworkStatusListener(listener)` | 网络恢复后补一次 `registerApp()` |
 | `dji.v5.manager.ldm.LDMManager` | `enableLDM(Context, callback, LDMExemptModule...)` | 本地数据模式（需向 DJI 申请 License） |
 
-`DJISDKInitEvent` 只有两个值：`START_TO_INITIALIZE`、`INITIALIZE_COMPLETE`。
-
+`DJISDKInitEvent` 只有两个值：`START_TO_INITIALIZE`、==INITIALIZE_COMPLETE==。
 ## 三、最简实现
 
 ### 1. Gradle 依赖
@@ -67,6 +66,9 @@ android {
 }
 ```
 
+> [!WARNING] 只支持 arm64
+> 官方只提供 ==arm64-v8a== 的 so。工程里加 `armeabi-v7a`、`x86`，或者在 x86 模拟器上跑，都会在运行期 so 加载失败——编译能过，启动就崩。
+
 ### 2. AndroidManifest.xml
 
 ```xml
@@ -81,7 +83,12 @@ android {
 </application>
 ```
 
-> 权限不用手写太多：`INTERNET`、`ACCESS_NETWORK_STATE`、`ACCESS_WIFI_STATE`、`BLUETOOTH`、定位、存储等已由 SDK 的 AAR 清单自动合并。应用侧只需补自己用到的（如 `RECORD_AUDIO`、`MANAGE_EXTERNAL_STORAGE`）。
+> [!WARNING] App Key 与签名绑定
+> DJI 后台登记的是「==包名 + 签名指纹==」，所以 debug 包也必须用同一套 keystore（示例工程 `debug` 也指向 `msdkkeystore.jks`）。换签名、换包名，都会直接注册失败，而回调里只给一个错误码。
+
+`extractNativeLibs` 必须为 `true`，否则 so 加载失败、应用起不来。
+
+权限不用全手写：`INTERNET`、`ACCESS_NETWORK_STATE`、`ACCESS_WIFI_STATE`、`BLUETOOTH`、定位、存储等已由 SDK 的 AAR 清单==自动合并==。应用侧只需补自己用到的（如 `RECORD_AUDIO`、`MANAGE_EXTERNAL_STORAGE`）。
 
 ### 3. Application：初始化 + 注册
 
@@ -172,6 +179,11 @@ public class MyApplication extends Application {
 }
 ```
 
+> [!TIP] 断网导致的注册失败可以自愈
+> 注册失败大多不是 Key 的问题，而是首次启动时没网。上面这段监听让网络恢复后自动补一次 `registerApp()`，比让用户杀进程重进省事得多。
+>
+> 另外，注册结果有==本地缓存==：注册成功后再次启动无需联网，直到应用被重装。所以"第二次启动就正常"这个现象不能证明代码没问题。
+
 ### 4. 注册成功后确认机型
 
 ```java
@@ -198,9 +210,10 @@ KeyManager.getInstance().getValue(KeyTools.createKey(ProductKey.KeyProductType),
 
 ## 四、注意事项
 
-1. **App Key 与签名绑定**：DJI 后台登记的是「包名 + 签名指纹」，所以 debug 包也要用同一套 keystore（示例工程 `debug` 也指向 `msdkkeystore.jks`）。换签名会直接注册失败。
-2. **`SDKManagerCallback` 会被 SDK 长期强引用**：不要在回调里持有 Activity/Fragment，否则内存泄漏。用 Application 或全局单例持有。
-3. **注册结果有本地缓存**：注册成功后再次启动无需联网，直到应用被重装。
-4. **不要提前调 `registerApp()`**：必须在 `onInitProcess` 收到 `INITIALIZE_COMPLETE` 之后。
-5. **`extractNativeLibs` 必须为 true**，否则 so 加载失败。
-6. **LDM（本地数据模式）** 会切断 SDK 的网络访问，需要先在 DJI 官网申请 License；开启时可用 `LDMExemptModule` 放行个别模块（如 RTK）。详见 [[09_设备维护与负载扩展]]。
+1. **`SDKManagerCallback` 会被 SDK 长期强引用**：不要在回调里持有 Activity/Fragment，否则内存泄漏。用 Application 或全局单例持有。
+2. **注册结果有==本地缓存==**：注册成功后再次启动无需联网，直到==应用被重装==。所以"第二次启动就正常"不能证明代码没问题。
+3. **不要提前调 `registerApp()`**：必须在 `onInitProcess` 收到 `INITIALIZE_COMPLETE` 之后。
+4. **LDM（本地数据模式）** 会切断 SDK 的网络访问，需要先在 DJI 官网申请 ==License==；开启时可用 `LDMExemptModule` 放行个别模块（如 RTK）。详见 [[09_设备维护与负载扩展]]。
+
+> [!IMPORTANT] 初始化完成后才能注册
+> 提前调 `registerApp()` 会失败，而且回调里没有任何提示指向"调早了"。判断依据只有一个：`onInitProcess` 收到 ==INITIALIZE_COMPLETE==。更稳妥的写法是用一个 `sdkInited` 标志位记下这个状态，后面所有依赖注册的动作都先检查它。

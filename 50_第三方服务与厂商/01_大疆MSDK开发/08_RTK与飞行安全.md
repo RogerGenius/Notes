@@ -6,7 +6,7 @@ tags:
   - 生态/移动
   - 生态/大疆MSDK
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 source: IRTKCenter / IFlyZoneManager / SampleCode-V5 RTKCenterVM、FlySafeVM
 ---
 
@@ -14,7 +14,7 @@ source: IRTKCenter / IFlyZoneManager / SampleCode-V5 RTKCenterVM、FlySafeVM
 
 ## 一、功能说明
 
-- **RTK**：给飞行器提供厘米级定位。三种参考源：机载 RTK 模块 + 网络 RTK（千寻 / 移动 CMCC / 自定义 NTRIP）、D-RTK 基站。
+- **RTK**：给飞行器提供==厘米级==定位。三种参考源：机载 RTK 模块 + 网络 RTK（千寻 / 移动 CMCC / 自定义 NTRIP）、D-RTK 基站。
 - **飞行安全**：读取限飞区数据库、监听飞行警告（限高区、禁飞区、返航提示）、解锁授权区。
 
 ## 二、相关 API
@@ -37,6 +37,21 @@ source: IRTKCenter / IFlyZoneManager / SampleCode-V5 RTKCenterVM、FlySafeVM
 
 `RTKLocationInfo`：`getRtkLocation()`（含 `getPositioningSolution()`：`NONE`/`SINGLE_POINT`/`FLOAT`/`FIXED_POINT`）、`getReal3DLocation()`、`getRealHeading()`。
 
+定位解是一个逐级收敛的过程，只有走到 `FIXED_POINT` 才算拿到厘米级精度：
+
+```mermaid
+stateDiagram-v2
+    [*] --> NONE
+    NONE --> SINGLE_POINT: 收到卫星信号
+    SINGLE_POINT --> FLOAT: 收到差分数据，浮点解
+    FLOAT --> FIXED_POINT: 整周模糊度固定
+    FIXED_POINT --> FLOAT: 信号变差或差分中断
+    FLOAT --> SINGLE_POINT: 差分数据丢失
+    SINGLE_POINT --> NONE: 失锁
+```
+
+`FLOAT` 是米级、`FIXED_POINT` 才是厘米级。判断"RTK 到底能不能用"，看的就是这个枚举，不是看有没有连上。
+
 ### 2. 飞行安全（`FlyZoneManager.getInstance()`）
 
 | 方法 | 说明 |
@@ -55,6 +70,19 @@ source: IRTKCenter / IFlyZoneManager / SampleCode-V5 RTKCenterVM、FlySafeVM
 ## 三、最简实现
 
 ### 1. 开启机载 RTK + 选择参考源
+
+开启 RTK 有两个时序约束：模块要在电机起转前开，参考源改了要重启飞行器才完全生效。
+
+```mermaid
+flowchart TD
+  A["上电，电机未起转"] --> B["setAircraftRTKModuleEnabled(true)"]
+  B --> C{"onSuccess?"}
+  C -- 否 --> D["开启失败，检查机型是否支持"]
+  C -- 是 --> E["setRTKReferenceStationSource(source)"]
+  E --> F["重启飞行器"]
+  F --> G["参考源完全生效"]
+  B -.电机已起转.-> H["调用无效，静默忽略"]
+```
 
 ```java
 import androidx.annotation.NonNull;
@@ -85,6 +113,16 @@ public void enableRtk(RTKReferenceStationSource source) {
 }
 ```
 
+> [!CAUTION] RTK 必须在电机起转前开启
+> 电机一旦起转，`setAircraftRTKModuleEnabled` 会被静默忽略——不报错、不抛异常，回调还是成功，但模块没开。
+>
+> 后果是带着"以为开了 RTK"的状态起飞，实际只有普通 GPS 精度，航线整体偏移。而开启后若拿不到 RTK 数据，飞行器又不允许起飞——这一步错了两头都不对。
+>
+> 正确顺序：上电 → 开 RTK → 等 ==FIXED_POINT== → 再起转。
+
+> [!WARNING] 换参考源要重启飞行器
+> `setRTKReferenceStationSource` 调用成功只代表设置被接受，完全生效要重启飞行器。不重启的表现是"设置成功但精度没变"，很容易误判成参考源配错了。
+
 ### 2. 启动千寻网络 RTK
 
 ```java
@@ -104,6 +142,11 @@ public void stopNetworkRtk() {
     RTKCenter.getInstance().getQXRTKManager().stopNetworkRTKService(null);
 }
 ```
+
+> [!WARNING] CMCC 必须显式指定坐标系
+> 千寻默认 ==CGCS2000==，可以直接用；移动 CMCC 的参考站用的是另一套基准，必须显式传坐标系。
+>
+> 坐标系传错不会报错，结果是所有坐标系统性偏移——看起来"RTK 正常、固定解正常"，但位置差了米级。这类问题在打点作业里最难发现，因为每次偏移的方向和量都一致，容易被当成设备本身的误差。
 
 ### 3. 监听 RTK 定位与状态
 
@@ -134,7 +177,33 @@ public void stopObserveRtk() {
 }
 ```
 
+> [!IMPORTANT] 只有 FIXED_POINT 才是厘米级
+> 判断 RTK 能不能用，看的不是"连上了没"，而是 `getPositioningSolution()` 是否等于 `==FIXED_POINT==`。
+>
+> `FLOAT` 是浮点解，米级；`SINGLE_POINT` 基本等同单点定位；`NONE` 就是没有。业务代码里凡是"RTK 已就绪，可以开始作业"的判断，都应该以 `FIXED_POINT` 为准。
+>
+> 另外，定位精度会随基线距离衰减，固定解也不例外：
+
+$$
+\sigma_h \approx \sigma_0 + \alpha d
+$$
+
+$\sigma_0$ 是标称水平精度，$d$ 是基线距离，$\alpha$ 约 1 ppm——每远 1 km，误差增加约 1 mm。长基线作业时这个量不能忽略。
+
 ### 4. 监听飞行安全警告
+
+五个回调按严重程度递进，从"提示"到"强制降落"，UI 的处理策略也应该逐级加重：
+
+```mermaid
+flowchart TD
+  A["onTipNotificationUpdate<br>进入限高区、接近禁飞区"] --> B["onWarningNotificationUpdate<br>起飞失败、接近禁飞区"]
+  B --> C["onSeriousWarningNotificationUpdate<br>已在禁飞区/限高区内"]
+  C --> D{"getCountdown() 归零?"}
+  D -- 是 --> E["飞行器强制降落"]
+  D -- 否 --> F["用户手动脱离禁飞区"]
+  B --> G["onReturnToHomeNotificationUpdate<br>返航路线会穿越禁飞区"]
+  A --> H["onSurroundingFlyZonesUpdate<br>周边限飞区，用于地图绘制"]
+```
 
 ```java
 import dji.v5.manager.aircraft.flysafe.FlySafeNotificationListener;
@@ -176,6 +245,11 @@ public void observeFlySafe() {
 }
 ```
 
+> [!CAUTION] 倒计时结束会强制降落
+> `FlySafeSeriousWarningInformation.getCountdown()` 是一个真实的倒计时，归零后飞行器==强制降落==——不受操作者控制，也不管下方是不是安全区域。
+>
+> UI 收到这个回调必须立刻打断当前操作：全屏提示、播报、给出"立即返航/离开"的按钮。把它当成普通 toast 弹一下就过去，是在拿设备赌。
+
 ### 5. 查询周边限飞区 / 解锁授权区
 
 ```java
@@ -207,10 +281,13 @@ public void unlockZone(int flyZoneId) {
 
 1. **RTK 必须在电机起转前开启**；开启后若没有 RTK 数据，飞行器不允许起飞。
 2. **切换参考源后需重启飞行器**才完全生效。
-3. **遥控器对频为 `CHANNEL_B` 后 RTK 全部不可用**（双控 B 控）。
+3. **遥控器对频为 ==CHANNEL_B== 后 RTK 全部不可用**（双控 B 控）。
 4. **千寻需要登录 DJI 账号**；CMCC 必须显式指定坐标系（`startNetworkRTKService(coordinateSystem, cb)`）。
-5. **Mavic 3E 系列需要外接 RTK Dongle**（`RtkMobileStationKey.KeyIsRTKDongleConnect`，定义在父类 `DJIRtkMobileStationKey`）才能用网络 RTK。
-6. **限飞区查询范围是中心 50 km**，数量多时地图绘制会卡，注意抽稀。
-7. **`unlockAuthorizationFlyZone` 的机型差异**：M300/M350/M30/M3E 等行业机型可直接按 ID 解禁（重启后仍禁飞）；Mini 3 等消费机型必须走官网申请 + License 下发。
+5. **Mavic 3E 系列需要外接 ==RTK Dongle==**（`RtkMobileStationKey.KeyIsRTKDongleConnect`，定义在父类 `DJIRtkMobileStationKey`）才能用网络 RTK。
+6. **限飞区查询范围是中心 ==50 km==**，数量多时地图绘制会卡，注意抽稀。
+7. **`unlockAuthorizationFlyZone` 的机型差异**：M300/M350/M30/M3E 等行业机型可直接按 ID 解禁（重启后仍禁飞）；Mini 3 等消费机型必须走官网申请 + ==License== 下发。
 8. **`downloadFlyZoneLicensesFromServer` 需要先登录 DJI 账号**。
-9. **严重警告有倒计时**：`FlySafeSeriousWarningInformation.getCountdown()` 结束后飞行器会强制降落，UI 必须立即提示用户。
+9. **严重警告有倒计时**：`FlySafeSeriousWarningInformation.==getCountdown()==` 结束后飞行器会强制降落，UI 必须立即提示用户。
+
+> [!WARNING] 双控 B 控会让 RTK 整体失效
+> 遥控器对频成 `CHANNEL_B`（双控的从控）后，RTK 相关接口全部不可用。现象是"RTK 怎么都连不上"，而设备本身完全正常。排查 RTK 问题前先看一眼当前遥控器的通道，比翻日志快。
