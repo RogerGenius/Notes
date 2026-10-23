@@ -6,7 +6,7 @@ tags:
   - 生态/移动
 created: 2026-10-22
 updated: 2026-10-23
-source: 2022 最新 Android 基础教程（B 站 BV19U4y1R7zV）p04–p101
+source: 2022 最新 Android 基础教程（B 站 BV19U4y1R7zV）p04–p131
 ---
 
 # Android 开发入门（Java）
@@ -18,29 +18,29 @@ source: 2022 最新 Android 基础教程（B 站 BV19U4y1R7zV）p04–p101
 
 ## 课程地图
 
-| 章   | 模块              | 对应集数                          | 状态          |
-| --- | --------------- | ----------------------------- | ----------- |
-| 01  | 环境搭建            | p04–p09                       | 已整理         |
-| 05  | 工程结构与构建配置       | p11–p13                       | 已整理         |
-| 10  | 界面与逻辑基础         | p14–p15                       | 已整理         |
-| 15  | 视图基础            | p17–p22                       | 已整理         |
-| 20  | 布局容器            | p23–p26                       | 已整理         |
-| 25  | 基础控件与交互         | p27–p33                       | 已整理         |
-| 30  | Activity 进阶     | p37–p42                       | 已整理         |
-| 35  | 资源与适配           | p43–p50                       | 已整理         |
-| 40  | 表单控件与对话框        | p51–p63                       | 已整理         |
-| 45  | 列表与分页           | p106–p109、p115–p118           | 待整理         |
-| 50  | 数据存储            | p64–p79                       | 已整理         |
-| 55  | 系统组件与跨应用数据      | p87–p101                      | 已整理         |
-| 60  | 异步与后台           | p124、p129–p130                | 待整理         |
-| 65  | 通知与 Material 界面 | p102–p105、p128                | 待整理         |
-| 70  | 服务与广播           | p110–p111                     | 待整理         |
-| 75  | 设备能力与多媒体        | p112–p114、p122–p123、p126–p127 | 待整理         |
-| 80  | Fragment        | p119–p121                     | 待整理         |
-| 85  | 综合项目            | p81–p86、p125                  | 待整理         |
-| 90  | 设计模式与工程实践       | p92–p94、p131                  | 待整理         |
+| 章 | 模块 | 对应集数 | 状态 |
+|---|---|---|---|
+| 01 | 环境搭建 | p04–p09 | 已整理 |
+| 05 | 工程结构与构建配置 | p11–p13 | 已整理 |
+| 10 | 界面与逻辑基础 | p14–p15 | 已整理 |
+| 15 | 视图基础 | p17–p22 | 已整理 |
+| 20 | 布局容器 | p23–p26 | 已整理 |
+| 25 | 基础控件与交互 | p27–p33 | 已整理 |
+| 30 | Activity 进阶 | p37–p42 | 已整理 |
+| 35 | 资源与适配 | p43–p50 | 已整理 |
+| 40 | 表单控件与对话框 | p51–p63 | 已整理 |
+| 45 | 列表与分页 | p103–p108、p110、p112–p114 | 已整理 |
+| 50 | 数据存储 | p64–p79 | 已整理 |
+| 55 | 系统组件与跨应用数据 | p87–p101 | 已整理 |
+| 60 | Fragment | p115–p118 | 已整理 |
+| 65 | 广播与系统事件 | p123–p128 | 已整理 |
+| 70 | 定时与界面事件 | p129–p131 | 已整理 |
+| 75 | 设备能力与多媒体 | p122 | 待整理 |
+| 80 | Fragment 进阶 | p119–p121 | 待整理 |
+| 85 | 综合项目 | p81–p86 | 待整理 |
+| 90 | 设计模式与工程实践 | p92–p94 | 待整理 |
 
-排序原则：先能跑起来 → 再看懂工程 → 再改界面 → 再管页面 → 再存数据 → 再联网 → 最后做项目。列表控件排在存储之前，因为它是 UI 能力；需要「列表 + 存储」的购物车类案例归到综合项目。
+排序原则：先能跑起来 → 再看懂工程 → 再改界面 → 再管页面 → 再存数据 → 再接系统事件 → 最后做项目。列表与翻页控件（45）排在存储之前，因为它是纯 UI 能力；Fragment（60）排在存储之后，因为它的引导页案例要用 `SharedPreferences` 做启动标记；广播（65）是系统事件入口，[[#70.1 AlarmManager 定时管理器]] 依赖它；需要「列表 + 存储」的购物车类案例归到综合项目。
 
 ---
 
@@ -2561,6 +2561,763 @@ new TimePickerDialog(this,
 
 ---
 
+## 45 列表与分页
+
+### 45.1 适配器体系
+
+`Spinner`、`ListView`、`GridView` 外观差别很大，但「数据怎么变成一条条条目」用的是同一套机制：控件只管排列与滚动，==条目长什么样、每条显示什么，全交给 Adapter==。
+
+这套接口分三层：
+
+```mermaid
+classDiagram
+  Adapter <|-- ListAdapter
+  Adapter <|-- SpinnerAdapter
+  ListAdapter <|.. BaseAdapter
+  SpinnerAdapter <|.. BaseAdapter
+  BaseAdapter <|-- ArrayAdapter
+  BaseAdapter <|-- SimpleAdapter
+```
+
+| 类型 | 性质 | 谁在用 |
+|------|------|--------|
+| `Adapter` | 根接口，定义 `getCount()`、`getView()` 等最基础的方法 | 框架内部 |
+| `ListAdapter` | 面向列表的接口 | `ListView`、`GridView` |
+| `SpinnerAdapter` | 面向下拉的接口，多一个 `getDropDownView()` | `Spinner` |
+| `BaseAdapter` | 抽象类，同时实现上面两个接口，四个方法留给子类 | 自定义适配器的基类 |
+| `ArrayAdapter` | 现成实现，一条数据对应一个 `TextView` | 纯文本列表 |
+| `SimpleAdapter` | 现成实现，用 `Map` 的 key 映射到控件 ID | 图文两三个控件的条目 |
+
+选哪个实现类，取决于条目复杂度：
+
+| 条目结构 | 选 |
+|---------|----|
+| 只有一个文本 | `ArrayAdapter` |
+| 图标 + 文本，位置固定 | `SimpleAdapter` |
+| 任意布局、需要条件判断、需要复用优化 | `BaseAdapter` |
+
+> [!NOTE] `BaseAdapter` 同时实现两个接口，所以能喂给三类控件
+> `ArrayAdapter` 与 `SimpleAdapter` 都继承 `BaseAdapter`，所以同一个适配器对象既能给 `Spinner` 也能给 `ListView`——只要 `getView()` 返回的条目布局在两边都看得过去。`SpinnerAdapter` 比 `ListAdapter` 多的 `getDropDownView()`，`BaseAdapter` 已经提供了默认实现（内部转调 `getView()`），不重写也能跑。
+
+### 45.2 Spinner 与 ArrayAdapter
+
+`Spinner` 从一组选项里单选一个，等价于「一组单选按钮折叠起来」。它有两种展开方式：
+
+```xml
+<Spinner
+    android:id="@+id/sp_drop_down"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:spinnerMode="dropdown" />
+```
+
+| `spinnerMode` | 表现 |
+|--------------|------|
+| `dropdown` | 在控件下方就地展开一个列表 |
+| `dialog` | 弹出一个对话框，选中后自动关闭 |
+
+`dialog` 模式还能设提示语：`spinner.setPrompt("请选择行星")`。这个方法只在 `dialog` 模式下生效，`dropdown` 里设了也看不见。
+
+**`ArrayAdapter` 的三要素**：上下文、条目布局、数据数组。
+
+```java
+String[] planets = {"水星", "金星", "地球", "火星"};
+ArrayAdapter<String> adapter = new ArrayAdapter<>(
+        this, R.layout.item_select, planets);
+spinner.setAdapter(adapter);
+spinner.setSelection(0);
+```
+
+条目布局的根节点可以直接是 `TextView`，`ArrayAdapter` 会把这个 `TextView` 当作整条条目：
+
+```xml
+<!-- res/layout/item_select.xml -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="50dp"
+    android:gravity="center"
+    android:textColor="#0000FF"
+    android:textSize="17sp"
+    tools:text="地球" />
+```
+
+`tools:text` 只在 Android Studio 的预览里显示，运行时被忽略——它是给设计时看的占位文字，别拿它当默认值。
+
+**选中监听**用 `AdapterView.OnItemSelectedListener`：
+
+```java
+spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+    @Override
+    public void onItemSelected(AdapterView<?> parent, View view,
+                               int position, long id) {
+        tvResult.setText("您选择的是：" + planets[position]);
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> parent) {
+        // ......
+    }
+});
+```
+
+`onNothingSelected` 几乎不会触发，留空即可。要拿当前项也可以不靠 `position`，用 `parent.getItemAtPosition(position)` 直接取对象。
+
+**调用顺序不能乱**：`setAdapter()` → `setSelection()` → `setOnItemSelectedListener()`。`setSelection()` 在 `setAdapter()` 之前调用时适配器还是空的，没有条目可选，设了等于没设。
+
+### 45.3 SimpleAdapter
+
+条目变成「左边图标 + 右边文字」，`ArrayAdapter` 就不够用了。`SimpleAdapter` 用一张映射表把数据塞进指定控件：
+
+```java
+List<Map<String, Object>> dataList = new ArrayList<>();
+for (int i = 0; i < names.length; i++) {
+    Map<String, Object> map = new HashMap<>();
+    map.put("icon", icons[i]);      // 图片资源 ID，int 自动装箱为 Object
+    map.put("name", names[i]);
+    dataList.add(map);
+}
+
+SimpleAdapter adapter = new SimpleAdapter(
+        this,                       // 上下文
+        dataList,                   // 数据
+        R.layout.item_simple,       // 条目布局
+        new String[]{"icon", "name"},   // from：Map 的 key
+        new int[]{R.id.iv_icon, R.id.tv_name});  // to：控件 ID
+spinner.setAdapter(adapter);
+```
+
+五个参数的构造签名：
+
+```java
+SimpleAdapter(Context context,
+              List<? extends Map<String, ?>> data,
+              int resource,
+              String[] from,
+              int[] to)
+```
+
+`from` 与 `to` **按下标一一对应**：`from[0]` 的 key 找到的值，填进 `to[0]` 的控件。所以两个数组长度必须相等，`from` 里的每个 key 必须在每个 Map 里都存在，`to` 里的每个 ID 必须在条目布局里存在——任何一处对不上，运行时直接抛异常或显示空白。
+
+```xml
+<!-- res/layout/item_simple.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal">
+
+    <ImageView
+        android:id="@+id/iv_icon"
+        android:layout_width="0dp"
+        android:layout_height="50dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/tv_name"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="3"
+        android:gravity="center"
+        android:textColor="#FFFF0000"
+        android:textSize="17sp" />
+</LinearLayout>
+```
+
+这里 `ImageView` 的高度写 `50dp`，`TextView` 写 `match_parent`——父容器高度是 `wrap_content`，会跟着最高的子控件撑开，所以 `TextView` 最终也是 50dp。==宽高全写 `wrap_content` 时，两个控件的行高对不齐==，一个被图片撑高、一个被文字撑高。
+
+**取当前项要注意返回类型**：`SimpleAdapter.getItem(position)` 返回的是那个 `Map`，不是字符串。想显示名称得显式取：
+
+```java
+Map<String, Object> item = (Map<String, Object>) parent.getItemAtPosition(position);
+tvResult.setText(String.valueOf(item.get("name")));
+```
+
+直接 `parent.getItemAtPosition(position).toString()` 会把整个 Map 的内容打印出来，形如 `{icon=2131165268, name=地球}`。
+
+### 45.4 BaseAdapter
+
+条目结构再复杂一点——图标、标题、描述三块，还带条件判断——就只能自己写适配器。`BaseAdapter` 是抽象类，子类必须实现四个方法：
+
+| 方法 | 返回什么 |
+|------|---------|
+| `getCount()` | 条目总数，决定列表有多长 |
+| `getItem(int position)` | 该位置的数据对象 |
+| `getItemId(int position)` | 该位置的 ID，没有独立 ID 时返回 `position` |
+| `getView(int position, View convertView, ViewGroup parent)` | 该位置的条目 View |
+
+先写数据实体，再写适配器：
+
+```java
+public class Planet {
+    private int icon;
+    private String name;
+    private String desc;
+
+    public Planet(int icon, String name, String desc) {
+        this.icon = icon;
+        this.name = name;
+        this.desc = desc;
+    }
+
+    public int getIcon() { return icon; }
+    public String getName() { return name; }
+    public String getDesc() { return desc; }
+
+    public static List<Planet> getDefaultList() {
+        List<Planet> list = new ArrayList<>();
+        // 用三个数组构造，代码略
+        // ......
+        return list;
+    }
+}
+```
+
+```java
+public class PlanetBaseAdapter extends BaseAdapter {
+    private final Context context;
+    private final List<Planet> planetList;
+
+    public PlanetBaseAdapter(Context context, List<Planet> planetList) {
+        this.context = context;
+        this.planetList = planetList;
+    }
+
+    @Override
+    public int getCount() { return planetList.size(); }
+
+    @Override
+    public Object getItem(int position) { return planetList.get(position); }
+
+    @Override
+    public long getItemId(int position) { return position; }
+
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+        View view = LayoutInflater.from(context)
+                .inflate(R.layout.item_list, parent, false);
+        ImageView ivIcon = view.findViewById(R.id.iv_icon);
+        TextView tvName = view.findViewById(R.id.tv_name);
+        TextView tvDesc = view.findViewById(R.id.tv_desc);
+
+        Planet planet = planetList.get(position);
+        ivIcon.setImageResource(planet.getIcon());
+        tvName.setText(planet.getName());
+        tvDesc.setText(planet.getDesc());
+        return view;
+    }
+}
+```
+
+这段代码能跑，但每滚一条就 `inflate` 一次、`findViewById` 三次。条目上千时这是灾难，优化见下一节。
+
+**`getItem()` 的返回类型是 `Object`**：`BaseAdapter` 的签名如此，所以外部拿到后要强转。想省掉强转，就在适配器里加一个自己的 `getPlanet(int position)`。
+
+> [!WARNING] 垂直布局里的 `layout_weight` 分的是高度
+> 条目布局里如果两个 `TextView` 上下排列（父容器 `orientation="vertical"`），给它们设 `layout_weight="1"` 和 `"2"`，分掉的是**高度**，不是宽度。想左右分栏，父容器必须是 `horizontal`，且子控件的 `layout_width` 写 `0dp`——`layout_weight` 只在对应的方向上生效，方向搞反了权重完全不起作用。
+
+### 45.5 convertView 复用与 ViewHolder
+
+屏幕上同时能看见的条目数有限，比如 7 条。滚到第 8 条时，第 1 条已经滑出屏幕、彻底不可见。系统不会把它扔掉，而是**把它塞回 `getView()` 的 `convertView` 参数**，让第 8 条直接在这个旧 View 上改数据。
+
+```mermaid
+flowchart LR
+  A["第 1 条滑出屏幕"] --> B["回收池 RecycleBin"]
+  B --> C["作为 convertView 传入"]
+  C --> D["第 8 条 getView()"]
+  D --> E["改数据，不 inflate"]
+  E --> A
+```
+
+所以 `convertView` 的规律是：
+
+| 时机 | `convertView` |
+|------|--------------|
+| 首次显示的可见条目 | `null`，必须自己创建 |
+| 之后滚进来的每一条 | 非 `null`，可以直接复用 |
+
+只复用 View 还不够——每次仍然 `findViewById` 三次，开销依然存在。`ViewHolder` 把这三个控件引用打包成一个对象，挂在 View 的 tag 上，下次直接取出来用：
+
+```java
+@Override
+public View getView(int position, View convertView, ViewGroup parent) {
+    ViewHolder holder;
+    if (convertView == null) {
+        convertView = LayoutInflater.from(context)
+                .inflate(R.layout.item_list, parent, false);
+        holder = new ViewHolder();
+        holder.ivIcon = convertView.findViewById(R.id.iv_icon);
+        holder.tvName = convertView.findViewById(R.id.tv_name);
+        holder.tvDesc = convertView.findViewById(R.id.tv_desc);
+        convertView.setTag(holder);
+    } else {
+        holder = (ViewHolder) convertView.getTag();
+    }
+
+    Planet planet = planetList.get(position);
+    holder.ivIcon.setImageResource(planet.getIcon());
+    holder.tvName.setText(planet.getName());
+    holder.tvDesc.setText(planet.getDesc());
+    return convertView;
+}
+
+static class ViewHolder {
+    ImageView ivIcon;
+    TextView tvName;
+    TextView tvDesc;
+}
+```
+
+三个要点，每一个漏掉都会出问题：
+
+1. **`holder` 声明在 `if` 外面**。写在 `if` 分支里，分支外的代码就访问不到它。
+2. **`inflate` 传 `parent, false`，不传 `null`**。传 `null` 时条目拿不到父容器的 `LayoutParams`，`layout_width="match_parent"`、`layout_weight` 这些属性全部失效。
+3. **绑定数据放在 `if/else` 之外**。复用的是 View，不是数据——第 8 条复用了第 1 条的 View，如果不重新 `setText`，屏幕上显示的还是第 1 条的内容。
+
+> [!WARNING] 复用机制不叫 `Recycle`，那是 RecyclerView 的名字
+> `ListView`、`GridView`、`Spinner` 的复用由 `AbsListView.RecycleBin` 完成，`convertView` 就是它吐出来的。`RecyclerView` 是另一套控件，有独立的 `RecyclerView.Recycler` 和必须重写的 `ViewHolder` 基类。两者名字像，机制不同，别混着记。
+>
+> 顺带一句：`ViewHolder` 声明成 `static` 内部类，避免它隐式持有适配器实例——适配器又持有 `Activity`，链条一长就是泄漏。
+
+### 45.6 ListView
+
+有了适配器，`ListView` 的接入只有一行：
+
+```java
+ListView lvPlanet = findViewById(R.id.lv_planet);
+lvPlanet.setAdapter(new PlanetBaseAdapter(this, Planet.getDefaultList()));
+
+lvPlanet.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+    @Override
+    public void onItemClick(AdapterView<?> parent, View view,
+                            int position, long id) {
+        Planet planet = (Planet) parent.getItemAtPosition(position);
+        Toast.makeText(ListActivity.this, planet.getName(),
+                Toast.LENGTH_SHORT).show();
+    }
+});
+```
+
+```xml
+<ListView
+    android:id="@+id/lv_planet"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+```
+
+**高度必须写 `match_parent`**。写成 `wrap_content` 时，`ListView` 会一次性测量并展开全部条目，自己不再滚动——因为它认为「我要多高有多高」，滚动交给了外层容器。条目少时看不出问题，条目一多就整页拉长、外层滚动、复用机制也跟着失效。
+
+**去掉默认外观**。`ListView` 自带两条视觉元素：条目之间的分隔线、按压时的灰色背景。
+
+| 想去掉 | XML | 代码 |
+|--------|-----|------|
+| 分隔线 | `android:divider="@null"` + `android:dividerHeight="0dp"` | `setDivider(null)` + `setDividerHeight(0)` |
+| 按压背景 | `android:listSelector="@android:color/transparent"` | `setSelector(new ColorDrawable(Color.TRANSPARENT))` |
+
+`setDividerHeight(int)` 收的是**像素**，不是 dp。写 `setDividerHeight(1)` 在 3 倍屏上只有 1/3 dp，肉眼看不见。要按 dp 算，得自己转换：
+
+```java
+int px = (int) TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP, 1, getResources().getDisplayMetrics());
+lvPlanet.setDividerHeight(px);
+```
+
+**自定义按压效果**用 selector，和 [[#35.7 状态列表 selector]] 讲的是同一套机制：
+
+```xml
+<!-- res/drawable/list_selector.xml -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <color android:color="#FF9800" />
+    </item>
+    <item>
+        <color android:color="@android:color/transparent" />
+    </item>
+</selector>
+```
+
+```xml
+<ListView
+    ...
+    android:listSelector="@drawable/list_selector" />
+```
+
+`setSelector(null)` 不会抛异常，它的效果是**恢复系统默认 selector**——想真正取消按压效果，必须传透明色，不能传 `null`。
+
+### 45.7 条目内控件与条目点击的冲突
+
+条目里放一个 `Button` 之后，按钮能点，条目点击却没反应：
+
+```xml
+<!-- res/layout/item_list_with_button.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ll_item"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal">
+
+    <ImageView ... />
+    <TextView ... />
+    <Button
+        android:id="@+id/btn_operate"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:text="操作" />
+</LinearLayout>
+```
+
+原因不在「事件被抢」，而在**焦点**：`Button` 默认 `focusable="true"`、`clickable="true"`。条目里一旦有可聚焦的子控件，`ListView` 就认为这一条自己不能被选中，于是根本不再回调 `onItemClick`——==`OnItemClickListener` 不是被拦截，是压根没被调用==。
+
+```mermaid
+flowchart TD
+  A["条目内存在可聚焦子控件"] --> B["条目变为不可选中"]
+  B --> C["ListView 不再调用 performItemClick"]
+  C --> D["OnItemClickListener 不触发"]
+  D --> E["加 descendantFocusability=blocksDescendants"]
+  E --> F["焦点锁在条目根节点，子控件仍可点击"]
+```
+
+解法是让根容器「拦住」后代的焦点，把焦点留在自己身上：
+
+```xml
+<LinearLayout
+    ...
+    android:descendantFocusability="blocksDescendants">
+```
+
+```java
+llItem.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+```
+
+三个取值：
+
+| XML 值 | 常量 | 含义 |
+|--------|------|------|
+| `beforeDescendants` | `FOCUS_BEFORE_DESCENDANTS` | 父容器先拿焦点（默认） |
+| `afterDescendants` | `FOCUS_AFTER_DESCENDANTS` | 子控件都拿不到时才轮到父容器 |
+| `blocksDescendants` | `FOCUS_BLOCK_DESCENDANTS` | 父容器先拿，且不再往下传 |
+
+> [!IMPORTANT] 这个属性加在条目根节点，不是 `ListView` 上
+> 加在 `ListView` 上只影响 `ListView` 自身与它的直接子节点，对条目内部的 `Button` 无效。必须写在条目布局的最外层容器上。另一种等价做法是给 `Button` 单独设 `android:focusable="false"`，效果相同，但条目里控件一多就要逐个设，不如根节点一处解决。
+
+**别用错条目布局**：带按钮的适配器必须 `inflate` 带按钮的那份布局。误用普通 `item_list`，`findViewById(R.id.btn_operate)` 返回 `null`，一设监听就 NPE。
+
+### 45.8 GridView
+
+`GridView` 就是「`ListView` 的适配器机制 + 多行多列排布」。它继承 `AbsListView`，和 `GridLayout` **没有任何继承关系**——`GridLayout` 是纯布局容器，`GridView` 是数据控件，两者只是名字像。
+
+```xml
+<GridView
+    android:id="@+id/gv_planet"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:numColumns="3"
+    android:horizontalSpacing="5dp"
+    android:verticalSpacing="10dp"
+    android:columnWidth="100dp"
+    android:stretchMode="columnWidth" />
+```
+
+| 属性 | 作用 |
+|------|------|
+| `android:numColumns` | 固定列数，默认 1 |
+| `android:horizontalSpacing` | 列与列之间的间距 |
+| `android:verticalSpacing` | 行与行之间的间距 |
+| `android:columnWidth` | 每列的基准宽度 |
+| `android:stretchMode` | 剩余空间怎么分配 |
+
+一行的总宽度是固定的，减去间距后按列数均分，剩下的零头由 `stretchMode` 决定塞到哪里：
+
+$$
+w_{\text{col}} = \frac{W - (n-1)\,s}{n}
+$$
+
+$W$ 是 `GridView` 的可用宽度，$n$ 是 `numColumns`，$s$ 是 `horizontalSpacing`。算出来的 $w_{\text{col}}$ 往往不是整数，取整后还会剩几个像素，这就是 `stretchMode` 要处理的部分：
+
+| 值 | 常量 | 余量去哪 |
+|----|------|---------|
+| `none` | `STRETCH_NONE` | 不分配，留白在右侧 |
+| `columnWidth` | `STRETCH_COLUMN_WIDTH` | 平均加到每列宽度上（默认值） |
+| `spacingWidth` | `STRETCH_SPACING` | 平均加到列间距上 |
+| `spacingWidthUniform` | `STRETCH_SPACING_UNIFORM` | 列间距与两侧边缘一起分 |
+
+代码里也能改，且**代码在 XML 解析之后执行，会覆盖 XML 的值**：
+
+```java
+gvPlanet.setStretchMode(GridView.STRETCH_SPACING_UNIFORM);
+```
+
+适配器完全不用改——`PlanetBaseAdapter` 原样复用，只把 `getView()` 里 `inflate` 的布局换成网格版 `item_grid.xml`。==`GridView` 与 `ListView` 的差别只在排布，数据侧一模一样==。
+
+`columnWidth` 与 `stretchMode="columnWidth"` 同时存在时，`columnWidth` 不是失效，而是「基准值」——先按它算，再把余量加上去。调间距时给 `GridView` 设个背景色，空隙一眼就能看出来。
+
+### 45.9 ViewPager 与 PagerAdapter
+
+`ListView` 竖着滚，`ViewPager` 横着翻。两者都叫「一屏一个」，但适配器完全不同——`ViewPager` 用的是 `PagerAdapter`，不是 `BaseAdapter`：
+
+```xml
+<androidx.viewpager.widget.ViewPager
+    android:id="@+id/vp_content"
+    android:layout_width="match_parent"
+    android:layout_height="370dp" />
+```
+
+自定义适配器必须重写四个方法：
+
+| 方法 | 职责 |
+|------|------|
+| `getCount()` | 一共几页 |
+| `instantiateItem(ViewGroup container, int position)` | 创建第 `position` 页，加进 `container`，返回这个 View |
+| `destroyItem(ViewGroup container, int position, Object object)` | 把第 `position` 页从 `container` 移除 |
+| `isViewFromObject(View view, Object object)` | 判断这个 View 是不是那个对象，固定写 `view == object` |
+
+```java
+public class ImagePagerAdapter extends PagerAdapter {
+    private final List<View> mViewList = new ArrayList<>();
+
+    public ImagePagerAdapter(Context context, List<Goods> goodsList) {
+        for (Goods goods : goodsList) {
+            ImageView iv = new ImageView(context);
+            iv.setImageResource(goods.getPic());
+            iv.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+            mViewList.add(iv);
+        }
+    }
+
+    @Override
+    public int getCount() { return mViewList.size(); }
+
+    @Override
+    public Object instantiateItem(ViewGroup container, int position) {
+        View item = mViewList.get(position);
+        container.addView(item);
+        return item;
+    }
+
+    @Override
+    public void destroyItem(ViewGroup container, int position, Object object) {
+        container.removeView((View) object);
+    }
+
+    @Override
+    public boolean isViewFromObject(View view, Object object) {
+        return view == object;
+    }
+}
+```
+
+`instantiateItem` 与 `destroyItem` 成对调用：翻到某一页时前者执行，翻走且超出预加载范围时后者执行。`destroyItem` 里要 `removeView((View) object)`，用传进来的 `object`，不要按 `position` 去列表里取——索引可能已经变了。
+
+**翻页监听**有三个回调：
+
+```java
+viewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
+    @Override
+    public void onPageScrolled(int position, float positionOffset,
+                               int positionOffsetPixels) { /* ...... */ }
+
+    @Override
+    public void onPageSelected(int position) { /* ...... */ }
+
+    @Override
+    public void onPageScrollStateChanged(int state) { /* ...... */ }
+});
+```
+
+| 回调 | 触发时机 |
+|------|---------|
+| `onPageScrolled` | 滑动过程中持续触发，`positionOffset` 从 0 走到 1 |
+| `onPageSelected` | 目标页确定时触发一次 |
+| `onPageScrollStateChanged` | 滚动状态变化 |
+
+状态值三个：`SCROLL_STATE_IDLE`（0，静止）、`SCROLL_STATE_DRAGGING`（1，手指拖动中）、`SCROLL_STATE_SETTLING`（2，松手后的惯性滑动）。一次翻页的典型序列是 ==1 → 2 → 0==，2 不是「滑动完毕」，而是「还在滑，只是手松了」，0 才代表稳定停在新页。
+
+> [!NOTE] 官方推荐的是 ViewPager2
+> `androidx.viewpager.widget.ViewPager` 目前没有标废弃，但 Google 已明确推荐 `androidx.viewpager2.widget.ViewPager2`。两者不是换个类名就能用：
+>
+> | 项 | ViewPager | ViewPager2 |
+> |----|-----------|-----------|
+> | 适配器 | `PagerAdapter` | `RecyclerView.Adapter`（页面是 Fragment 时用 `FragmentStateAdapter`） |
+> | 监听 | `addOnPageChangeListener` | `registerOnPageChangeCallback` |
+> | 标签栏 | `PagerTabStrip` | `TabLayout` + `TabLayoutMediator` |
+> | 竖向滑动 | 不支持 | `setOrientation(ORIENTATION_VERTICAL)` |
+>
+> `PagerAdapter` 与 `RecyclerView.Adapter` 之间没有继承关系，不能互相替换。老项目里见到 `PagerAdapter` 就知道是 ViewPager 体系。
+
+### 45.10 PagerTabStrip
+
+`PagerTabStrip` 是贴在 `ViewPager` 上的标签栏，翻页时同步高亮，点标签能直接跳页。
+
+```xml
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <androidx.viewpager.widget.ViewPager
+        android:id="@+id/vp_goods"
+        android:layout_width="match_parent"
+        android:layout_height="400dp" />
+
+    <androidx.viewpager.widget.PagerTabStrip
+        android:id="@+id/pts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+</LinearLayout>
+```
+
+==XML 里必须写完整类名==，包括 `ViewPager` 自己。写成裸标签 `<ViewPager>` 时，系统会去 `android.widget` 包里找这个类，找不到就直接解析失败。
+
+标签文字来自适配器重写的 `getPageTitle()`：
+
+```java
+@Override
+public CharSequence getPageTitle(int position) {
+    return goodsList.get(position).getName();
+}
+```
+
+不重写这个方法，标签栏就是一条空白的灰条。
+
+**样式调整**：
+
+```java
+PagerTabStrip pts = findViewById(R.id.pts);
+pts.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+pts.setTextColor(Color.RED);
+```
+
+`setTextSize` 的第一个参数是单位，第二个才是数值。这个重载不用自己换算 px，比 `TextView.setTextSize(float)` 省事——后者收的是 sp，但写错单位时不会报错，只会显示成莫名其妙的大小。
+
+默认显示在第 0 页：`viewPager.setCurrentItem(2)`，索引从 0 起。
+
+**和 `PagerTitleStrip` 的区别**：`PagerTitleStrip` 只能看不能点，`PagerTabStrip` 能点、带一条下划线指示器。两者都是老 support-v4 控件迁移过来的，ViewPager2 体系里已经没有它们，等价方案是 `TabLayout`：
+
+```java
+new TabLayoutMediator(tabLayout, viewPager2,
+        (tab, position) -> tab.setText(goodsList.get(position).getName())
+).attach();
+```
+
+### 45.11 启动引导页
+
+把 `ViewPager` 用起来最典型的场景是首次启动的引导页：每页一张全屏图，底部一排圆点指示当前位置，最后一页出现「立即体验」按钮。
+
+```xml
+<!-- res/layout/activity_launch_simple.xml -->
+<androidx.viewpager.widget.ViewPager
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/vp_launch"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+```
+
+```xml
+<!-- res/layout/item_launch.xml -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/iv_launch"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop" />
+
+    <RadioGroup
+        android:id="@+id/rg_indicate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:orientation="horizontal"
+        android:paddingBottom="20dp" />
+
+    <Button
+        android:id="@+id/btn_start"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:text="立即体验"
+        android:textSize="22sp"
+        android:visibility="invisible" />
+</RelativeLayout>
+```
+
+`scaleType` 用 `centerCrop` 而不是 `fitXY`——`fitXY` 会把图片硬拉到屏幕比例，人物和文字都会变形；`centerCrop` 保持比例、裁掉超出部分。
+
+**圆点指示器**：每页自己生成一组 `RadioButton`，第 `i` 页选中第 `i` 个。
+
+```java
+public class LaunchSimpleAdapter extends PagerAdapter {
+    private final List<View> mViewList = new ArrayList<>();
+
+    public LaunchSimpleAdapter(Context context, int[] imageArray) {
+        LayoutInflater inflater = LayoutInflater.from(context);
+        for (int i = 0; i < imageArray.length; i++) {
+            View view = inflater.inflate(R.layout.item_launch, null);
+
+            ImageView ivLaunch = view.findViewById(R.id.iv_launch);
+            ivLaunch.setImageResource(imageArray[i]);
+
+            RadioGroup rgIndicate = view.findViewById(R.id.rg_indicate);
+            for (int j = 0; j < imageArray.length; j++) {
+                RadioButton rb = new RadioButton(context);
+                rb.setLayoutParams(new RadioGroup.LayoutParams(
+                        RadioGroup.LayoutParams.WRAP_CONTENT,
+                        RadioGroup.LayoutParams.WRAP_CONTENT));
+                rb.setPadding(10, 10, 10, 10);
+                rgIndicate.addView(rb);
+            }
+            ((RadioButton) rgIndicate.getChildAt(i)).setChecked(true);
+
+            Button btnStart = view.findViewById(R.id.btn_start);
+            if (i == imageArray.length - 1) {
+                btnStart.setVisibility(View.VISIBLE);
+                btnStart.setOnClickListener(v -> {
+                    // 跳主页，并写入引导标记
+                    // ......
+                });
+            }
+            mViewList.add(view);
+        }
+    }
+    // getCount / instantiateItem / destroyItem / isViewFromObject 同 45.9
+}
+```
+
+三处容易翻车：
+
+- **`RadioButton` 必须设 `LayoutParams`**，否则宽高是 0，圆点根本看不见。
+- **`RadioGroup` 必须 `orientation="horizontal"`**，默认是竖排，圆点会叠成一列。
+- **`btn_start` 在 XML 里默认 `invisible`**，最后一页才改成 `VISIBLE`。忘了这一步，前三页也挂着「立即体验」。
+
+> [!CAUTION] 每页各带一组圆点，控件数是页数的平方
+> 这个写法直观，但代价明确：4 页就是 4 个 `RadioGroup`、共 16 个 `RadioButton`，全部常驻内存。更省的做法是**在 `ViewPager` 外面放一个 `RadioGroup`**，翻页时只改这一个组的选中项——控件数从 $n^2$ 降到 $n$。数据量小的时候无所谓，页数上到十几页就该换。
+
+**主题**：引导页通常要全屏无标题栏，并改掉 `RadioButton` 的选中色。
+
+```xml
+<!-- res/values/themes.xml -->
+<style name="LaunchTheme" parent="Theme.AppCompat.NoActionBar">
+    <item name="colorPrimary">@color/purple_500</item>
+    <item name="colorAccent">@color/teal_200</item>
+</style>
+```
+
+```xml
+<activity
+    android:name=".LaunchSimpleActivity"
+    android:theme="@style/LaunchTheme" />
+```
+
+`colorAccent` 是 AppCompat 体系里的强调色，`RadioButton` 的选中态直接取它。Material3 主题（`Theme.Material3.*`）已经没有这个属性，选中色改由 `colorPrimary` / `colorSecondary` / `colorControlActivated` 控制。
+
+**这套写法的真正问题**：适配器在构造时就把 N 个页面全部 `inflate` 出来，页数一多，启动瞬间就要创建 N 份完整视图。更合理的做法是让每页变成一个 `Fragment`，由框架按需创建——见 [[#60.4 用 Fragment 改进启动引导页]]。
+
+---
+
 ## 50 数据存储
 
 ### 50.1 五种存储方式怎么选
@@ -2816,7 +3573,9 @@ boolean deleted = deleteDatabase("test.db");
 
 ### 50.7 SQLiteOpenHelper
 
-抽象类，由系统统一管理数据库的创建、升级、连接生命周期。
+抽象类，由系统统一管理数据库的创建、升级、连接生命周期。用法是继承它、实现两个回调，再把自己需要的连接管理与 CRUD 方法一并写在子类里。
+
+先看整个类的骨架，下面各段都是它的展开：
 
 ```java
 public class UserDBHelper extends SQLiteOpenHelper {
@@ -2826,6 +3585,10 @@ public class UserDBHelper extends SQLiteOpenHelper {
     private static final int DB_VERSION = 1;
 
     private static UserDBHelper instance;
+
+    // 连接句柄：由父类方法取得，由本类持有
+    private SQLiteDatabase mRdb;
+    private SQLiteDatabase mWdb;
 
     private UserDBHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -2838,6 +3601,7 @@ public class UserDBHelper extends SQLiteOpenHelper {
         return instance;
     }
 
+    // ---- 父类要求实现的两个回调 ----
     @Override
     public void onCreate(SQLiteDatabase db) {
         String sql = "CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " ("
@@ -2850,8 +3614,41 @@ public class UserDBHelper extends SQLiteOpenHelper {
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         // 版本升级逻辑，见 50.10
     }
+
+    // ---- 连接管理 ----
+    public void openReadLink() { /* ...... */ }
+
+    public void openWriteLink() { /* ...... */ }
+
+    public void closeLink() { /* ...... */ }
+
+    // ---- CRUD ----
+    public long insert(User user) { /* ...... */ }
+
+    public int deleteByName(String name) { /* ...... */ }
+
+    public int deleteAll() { /* ...... */ }
+
+    public int updateAgeByName(String name, int age) { /* ...... */ }
+
+    public List<User> queryByName(String name) { /* ...... */ }
+
+    // ---- 事务 ----
+    public void insertTwo(User u1, User u2) { /* ...... */ }
 }
 ```
+
+**哪些 API 是父类给的，哪些是连接对象给的**
+
+| 调用 | 定义在哪 | 说明 |
+|------|---------|------|
+| `getReadableDatabase()` | `SQLiteOpenHelper` 的 `public` 方法 | 子类里直接调，不用自己声明 |
+| `getWritableDatabase()` | `SQLiteOpenHelper` 的 `public` 方法 | 同上 |
+| `db.isOpen()` | `SQLiteDatabase` 的实例方法 | `db` 就是上面两个方法的返回值 |
+| `db.close()` | `SQLiteDatabase` 的实例方法 | 关的是连接，不是 Helper 本身 |
+| `db.execSQL()` / `insert()` / `query()` | `SQLiteDatabase` 的实例方法 | CRUD 全挂在连接上 |
+
+一句话：`SQLiteOpenHelper` 只负责「把连接交出来」，真正执行 SQL 的是它交出的 `SQLiteDatabase`。所以每个 CRUD 方法都得先拿到 `mWdb`，没连接就无从下手——这就是要先写连接管理的原因。
 
 **构造参数**：`(Context, name, CursorFactory, version)`。`factory` 传 `null` 即可；`version` 从 `1` 开始。
 
@@ -2869,22 +3666,30 @@ public class UserDBHelper extends SQLiteOpenHelper {
 
 **连接管理**
 
-```java
-private SQLiteDatabase mRdb;
-private SQLiteDatabase mWdb;
+`openReadLink()`、`openWriteLink()`、`closeLink()` 这三个**不是 Android API**，是课程作者自己封装的成员方法，名字可以随便改（`openDb()`、`closeDb()` 都行）。它们写在 `UserDBHelper` 内部，与 `onCreate`、`onUpgrade` 同级，共用前面声明的 `mRdb`、`mWdb` 两个字段：
 
+```java
+// 以下三段写在 UserDBHelper 类内部，与 onCreate、onUpgrade 同级
+
+// 字段声明区，与 DB_NAME、TABLE_NAME 放在一起
+private SQLiteDatabase mRdb;   // 读连接，未打开时为 null
+private SQLiteDatabase mWdb;   // 写连接，未打开时为 null
+
+// getReadableDatabase() 继承自 SQLiteOpenHelper，这里直接调用
 public void openReadLink() {
     if (mRdb == null || !mRdb.isOpen()) {
         mRdb = getReadableDatabase();
     }
 }
 
+// getWritableDatabase() 同样继承自 SQLiteOpenHelper
 public void openWriteLink() {
     if (mWdb == null || !mWdb.isOpen()) {
         mWdb = getWritableDatabase();
     }
 }
 
+// close() 是 SQLiteDatabase 的实例方法，关的是 mRdb / mWdb 指向的连接
 public void closeLink() {
     if (mRdb != null && mRdb.isOpen()) {
         mRdb.close();
@@ -2897,12 +3702,36 @@ public void closeLink() {
 }
 ```
 
+三段代码的分工：
+
+| 方法 | 里面调的是谁 | 做什么 |
+|------|------------|--------|
+| `openReadLink()` | 父类的 `getReadableDatabase()` | 取一个可读连接存进 `mRdb` |
+| `openWriteLink()` | 父类的 `getWritableDatabase()` | 取一个可写连接存进 `mWdb` |
+| `closeLink()` | `mRdb.close()` / `mWdb.close()` | 关连接并把字段置回 `null` |
+
+**为什么要判 `isOpen()`**：`getReadableDatabase()` 第一次调用时才真正打开数据库文件、触发 `onCreate` / `onUpgrade`，之后返回的是缓存的同一个实例。而 `openWriteLink()` 通常写在 `onStart()` 里，切页面、返回栈都会重新走一遍，加一层判断就能避免无意义的重复取用。`closeLink()` 里同样要判——对一个已经关闭的 `SQLiteDatabase` 再调 `close()` 虽然不抛异常，但会掩盖「连接已被别处关掉」这种状态错乱。
+
+**`close()` 有两个，别混**：
+
+| 调用 | 所属类 | 关的是什么 |
+|------|--------|-----------|
+| `db.close()` | `SQLiteDatabase` | 这一个连接实例 |
+| `helper.close()` | `SQLiteOpenHelper` | Helper 内部缓存的那个连接 |
+
+本节的 `closeLink()` 用的是前者。`helper.close()` 也能关，但它只处理 Helper 自己缓存的那一个引用；我们另外在 `mRdb`、`mWdb` 里存了字段，`helper.close()` 执行后这两个字段既不为 `null`、`isOpen()` 也变成了 `false`，状态反而更乱。==谁持有字段，谁负责关==。
+
+`closeLink()` 之后并不是不能再用——`mRdb`、`mWdb` 被置为 `null`，下次 `openWriteLink()` 会重新取一个新连接。关的是句柄，不是数据库文件。
+
 > [!NOTE] `getReadableDatabase()` 拿到的通常也是可写库
 > 只有在磁盘满这类极端情况下，它才会返回真正的只读实例。所以「读写分离」在 Android 上并不是靠两个不同的连接实现性能隔离——同一个 `SQLiteOpenHelper` 拿到的两个引用底层共享同一个连接池，并发由 SQLite 的文件锁协调。分成两个字段只是代码习惯。
+>
+> 也正因为两者常常是同一个实例，`closeLink()` 里关完 `mRdb` 之后，`mWdb.isOpen()` 已经是 `false`，第二个分支不会重复关闭。
 
 **插入**
 
 ```java
+// UserDBHelper 的成员方法
 public long insert(User user) {
     ContentValues cv = new ContentValues();
     cv.put("name", user.name);
@@ -2922,30 +3751,47 @@ public long insert(User user) {
 
 **生命周期绑定**
 
-```java
-@Override
-protected void onStart() {
-    super.onStart();
-    mHelper = UserDBHelper.getInstance(this);
-    mHelper.openReadLink();
-    mHelper.openWriteLink();
-}
+连接是 Activity 的成员，随页面开关。这两段写在 **Activity** 里，不是 Helper 里：
 
-@Override
-protected void onStop() {
-    super.onStop();
-    mHelper.closeLink();
+```java
+public class UserActivity extends AppCompatActivity {
+
+    private UserDBHelper mHelper;   // 单例，getInstance 拿到的就是同一个
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mHelper = UserDBHelper.getInstance(this);
+        mHelper.openReadLink();
+        mHelper.openWriteLink();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mHelper.closeLink();
+    }
 }
 ```
 
+`mHelper` 必须是 Activity 的成员字段，不能写成 `onStart` 里的局部变量——`onStop` 里还要用它关连接。
+
 ### 50.8 增删改查
+
+本节所有 CRUD 方法都写在 `UserDBHelper` 内部（见 50.7 的类骨架），直接用 50.7 里持有的 `mWdb` 字段。不这样放的话，`mWdb` 在外部根本拿不到——它是 `private` 的。
 
 **删除**
 
 ```java
-int rows = mWdb.delete(TABLE_NAME, "name = ?", new String[]{"jack"});
+// UserDBHelper 的成员方法
+public int deleteByName(String name) {
+    return mWdb.delete(TABLE_NAME, "name = ?", new String[]{name});
+}
+
 // 清空整表
-int rows = mWdb.delete(TABLE_NAME, "1=1", null);
+public int deleteAll() {
+    return mWdb.delete(TABLE_NAME, "1=1", null);
+}
 ```
 
 签名：`delete(String table, String whereClause, String[] whereArgs)`。返回受影响行数，`0` 表示没有匹配到记录。
@@ -2957,10 +3803,13 @@ int rows = mWdb.delete(TABLE_NAME, "1=1", null);
 **修改**
 
 ```java
-ContentValues cv = new ContentValues();
-cv.put("age", 20);
-cv.put("married", 1);
-int rows = mWdb.update(TABLE_NAME, cv, "name = ?", new String[]{"tommy"});
+// UserDBHelper 的成员方法
+public int updateAgeByName(String name, int age) {
+    ContentValues cv = new ContentValues();
+    cv.put("age", age);
+    cv.put("married", 1);
+    return mWdb.update(TABLE_NAME, cv, "name = ?", new String[]{name});
+}
 ```
 
 签名：`update(String table, ContentValues values, String whereClause, String[] whereArgs)`。`values` 里放所有要改的列，没放进去的列保持不变。返回受影响行数，支持批量（`whereClause` 写 `age > 15` 就一次改多行）。
@@ -2968,27 +3817,33 @@ int rows = mWdb.update(TABLE_NAME, cv, "name = ?", new String[]{"tommy"});
 **查询**
 
 ```java
-Cursor cursor = mWdb.query(
-        TABLE_NAME,          // 表名
-        null,                // 列名数组，null 表示全部列
-        "name = ?",          // selection
-        new String[]{"jack"},// selectionArgs
-        null,                // groupBy
-        null,                // having
-        "age DESC");         // orderBy
+// UserDBHelper 的成员方法
+public List<User> queryByName(String name) {
+    List<User> list = new ArrayList<>();
+    Cursor cursor = mWdb.query(
+            TABLE_NAME,          // 表名
+            null,                // 列名数组，null 表示全部列
+            "name = ?",          // selection
+            new String[]{name},  // selectionArgs
+            null,                // groupBy
+            null,                // having
+            "age DESC");         // orderBy
 
-try {
-    while (cursor.moveToNext()) {
-        User u = new User();
-        u.id = cursor.getInt(cursor.getColumnIndexOrThrow("_id"));
-        u.name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
-        u.age = cursor.getInt(cursor.getColumnIndexOrThrow("age"));
-        u.height = cursor.getLong(cursor.getColumnIndexOrThrow("height"));
-        u.weight = cursor.getFloat(cursor.getColumnIndexOrThrow("weight"));
-        u.married = cursor.getInt(cursor.getColumnIndexOrThrow("married")) != 0;
+    try {
+        while (cursor.moveToNext()) {
+            User u = new User();
+            u.id = cursor.getInt(cursor.getColumnIndexOrThrow("_id"));
+            u.name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
+            u.age = cursor.getInt(cursor.getColumnIndexOrThrow("age"));
+            u.height = cursor.getLong(cursor.getColumnIndexOrThrow("height"));
+            u.weight = cursor.getFloat(cursor.getColumnIndexOrThrow("weight"));
+            u.married = cursor.getInt(cursor.getColumnIndexOrThrow("married")) != 0;
+            list.add(u);
+        }
+    } finally {
+        cursor.close();
     }
-} finally {
-    cursor.close();
+    return list;
 }
 ```
 
@@ -3012,15 +3867,18 @@ try {
 | `endTransaction()` | 结束事务：有成功标志则提交，无则回滚 |
 
 ```java
-mWdb.beginTransaction();
-try {
-    mWdb.insert(TABLE_NAME, null, cv1);
-    mWdb.insert(TABLE_NAME, null, cv2);
-    mWdb.setTransactionSuccessful();
-} catch (Exception e) {
-    e.printStackTrace();
-} finally {
-    mWdb.endTransaction();
+// UserDBHelper 的成员方法
+public void insertTwo(User u1, User u2) {
+    mWdb.beginTransaction();
+    try {
+        insert(u1);
+        insert(u2);
+        mWdb.setTransactionSuccessful();
+    } catch (Exception e) {
+        e.printStackTrace();
+    } finally {
+        mWdb.endTransaction();
+    }
 }
 ```
 
@@ -3093,7 +3951,37 @@ public class LoginInfo {
 
 **表结构**：`login_info(id, phone, password, remember)`
 
-**三个查询方法**
+**方法写在哪**
+
+和 50.7 一样，下面这些方法都写在 `LoginDBHelper` 内部——一个继承 `SQLiteOpenHelper`、只管 `login_info` 这张表的子类。`mRdb`、`mWdb` 是它的成员字段，由 50.7 里的 `openReadLink()` / `openWriteLink()` 赋值：
+
+```java
+public class LoginDBHelper extends SQLiteOpenHelper {
+
+    private static final String DB_NAME = "login.db";
+    private static final String TABLE_NAME = "login_info";
+    private static final int DB_VERSION = 1;
+
+    private SQLiteDatabase mRdb;
+    private SQLiteDatabase mWdb;
+
+    // 构造方法、getInstance、onCreate、onUpgrade 同 50.7
+    // ......
+
+    // ---- 下面这些方法都是这个类的成员 ----
+    public LoginInfo queryTop() { /* ...... */ }
+
+    public LoginInfo queryByPhone(String phone) { /* ...... */ }
+
+    public int deleteByPhone(String phone) { /* ...... */ }
+
+    public long insert(LoginInfo info) { /* ...... */ }
+
+    public void save(LoginInfo info) { /* ...... */ }
+}
+```
+
+**查询、删除与插入**
 
 ```java
 // 取最后一条「记住」的记录
@@ -3129,6 +4017,15 @@ public LoginInfo queryByPhone(String phone) {
 // 按手机号删除
 public int deleteByPhone(String phone) {
     return mWdb.delete("login_info", "phone = ?", new String[]{phone});
+}
+
+// 插入一条记录
+public long insert(LoginInfo info) {
+    ContentValues cv = new ContentValues();
+    cv.put("phone", info.phone);
+    cv.put("password", info.password);
+    cv.put("remember", info.remember ? 1 : 0);
+    return mWdb.insert("login_info", null, cv);
 }
 ```
 
@@ -4217,7 +5114,7 @@ if (cursor != null) {
 
 ### 55.9 ContentObserver 监听短信
 
-**为什么不用广播**：短信到达广播 `SMS_RECEIVED_ACTION` 需要 `RECEIVE_SMS` 权限，且被系统严格管控。而「监听数据库变化」用 `ContentObserver` 更轻——不需要额外权限，事件驱动，不轮询。
+**为什么不用广播**：短信到达广播 `SMS_RECEIVED_ACTION` 需要 `RECEIVE_SMS` 权限，且被系统严格管控。而「监听数据库变化」用 `ContentObserver` 更轻——不需要额外权限，事件驱动，不轮询。广播本身见 [[#65.1 广播是什么]]。
 
 ```java
 public class SmsObserver extends ContentObserver {
@@ -4644,6 +5541,799 @@ PackageInfo info = pm.getPackageArchiveInfo(
 
 ---
 
+## 60 Fragment
+
+### 60.1 静态注册
+
+`Fragment`（碎片）是可以独立划分的一块界面区域，有自己的布局和逻辑。它的存在意义很直接：==把 Activity 拆成几个自治的块，避免一个 Activity 长到几千行==。大屏设备上左边列表右边详情、引导页的每一页、底部导航的每个 Tab，都是 Fragment 的典型场景。
+
+注册方式有两种：**静态注册**在布局 XML 里写 `<fragment>` 标签，**动态注册**在代码里 `new` 出来交给 `FragmentManager`。先看静态。
+
+```xml
+<!-- res/layout/activity_static.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <fragment
+        android:id="@+id/fragment_static"
+        android:name="com.example.staticfragment.StaticFragment"
+        android:layout_width="match_parent"
+        android:layout_height="60dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="下方是宿主 Activity 的内容" />
+</LinearLayout>
+```
+
+```java
+public class StaticFragment extends Fragment {
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_static, container, false);
+    }
+}
+```
+
+```xml
+<!-- res/layout/fragment_static.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#4CAF50"
+    android:orientation="horizontal">
+
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:text="静态注册的 Fragment" />
+
+    <ImageView
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="4"
+        android:scaleType="fitCenter"
+        android:src="@drawable/huawei" />
+</LinearLayout>
+```
+
+三处关键：
+
+- **`android:name` 必须写完整类名**，包括包名。写简称时系统在 `android.app` 包里找不到这个类，布局解析直接崩。
+- **`android:id` 不能省**，后面 `findFragmentById()` 要靠它定位。
+- **Fragment 类必须是 `public` 且带 `public` 无参构造**。系统是用反射重建 Fragment 的（配置变更、进程恢复都会走这条路），构造函数有参数时反射失败。
+
+**工作机制**：宿主布局被 `inflate` 时，系统读到 `<fragment>` 标签，按 `android:name` 反射出实例，再调用它的 `onCreateView()` 加载自己的布局，最后把返回的 View 挂进 `<fragment>` 标签所在的位置。所以 Fragment 的布局是「嵌」进宿主布局里的，不是覆盖。
+
+> [!NOTE] 静态注册的 Fragment 生命周期受宿主摆布
+> 宿主 Activity 被销毁时，静态 Fragment 一样走完 `onDestroyView → onDestroy → onDetach`。只有在 Fragment 始终留在页面里、用户只是在别的页面之间来回切时，才看不到销毁链。这一点在下面的日志里能验证。
+
+### 60.2 生命周期
+
+Fragment 的回调比 Activity 多，因为「Fragment 存在」和「Fragment 的视图存在」是两件事：
+
+```mermaid
+stateDiagram-v2
+  [*] --> onAttach
+  onAttach --> onCreate
+  onCreate --> onCreateView
+  onCreateView --> onViewCreated
+  onViewCreated --> onStart
+  onStart --> onResume
+  onResume --> onPause: 失去交互
+  onPause --> onStop: 完全不可见
+  onStop --> onStart: 回到前台
+  onStop --> onDestroyView: 被移除
+  onDestroyView --> onDestroy
+  onDestroy --> onDetach
+  onDetach --> [*]
+```
+
+完整顺序：
+
+| 回调 | 含义 | 该做什么 |
+|------|------|---------|
+| `onAttach(Context)` | 绑定到宿主 Activity | 拿 `Context`、注册监听 |
+| `onCreate(Bundle)` | Fragment 实例创建 | 初始化非视图成员、读 `getArguments()` |
+| `onCreateView(...)` | 创建视图 | 返回 `inflater.inflate(layout, container, false)` |
+| `onViewCreated(View, Bundle)` | 视图创建完成 | `findViewById()`、设数据 |
+| `onStart()` | 即将可见 | 一般不用重写 |
+| `onResume()` | 可见且可交互 | 开动画、开始轮询 |
+| `onPause()` | 失去交互 | 停动画 |
+| `onStop()` | 不可见 | 停耗时任务 |
+| `onDestroyView()` | 视图销毁 | **释放视图引用**，防止泄漏 |
+| `onDestroy()` | 实例销毁 | 释放非视图资源 |
+| `onDetach()` | 解除与 Activity 的关联 | 清理回调 |
+
+验证顺序最省事的办法是打日志：
+
+```java
+private static final String TAG = "Fragment";
+
+@Override
+public void onAttach(@NonNull Context context) {
+    super.onAttach(context);
+    Log.d(TAG, "onAttach");
+}
+// 其余回调同理
+```
+
+实测结果与上表一致。值得注意的是**切到后台**只走 `onPause → onStop`，**回到前台**走 `onStart → onResume`——这两段和 Activity 一样。区别在销毁：Activity 销毁是 `onDestroy`，Fragment 多一层 `onDestroyView`。
+
+> [!IMPORTANT] `onAttach` 的参数是 `Context`，不是无参
+> 早期版本是 `onAttach(Activity)`，API 23 起废弃，改成 `onAttach(Context)`。重写成无参的 `onAttach()` 加 `@Override` 会直接编译报错——方法不存在。另外 `onActivityCreated()` 自 API 28 起废弃，原本在里面做的视图初始化，现在都放 `onViewCreated()`。
+
+**`onDestroyView` 与 `onDestroy` 的区别**是这一节最该记住的一条：
+
+| 回调 | 销毁了什么 | 实例还在吗 |
+|------|-----------|-----------|
+| `onDestroyView()` | 视图树 | 在，`onCreateView` 可以再来一次 |
+| `onDestroy()` | Fragment 实例 | 不在 |
+| `onDetach()` | 与 Activity 的绑定 | 不在，`getActivity()` 返回 `null` |
+
+把视图引用存在成员变量里、又在 `onDestroyView` 之后继续用它，就会拿到一棵已经脱离窗口的视图树——不崩，但改了看不见，还占着内存。
+
+### 60.3 动态注册与传参
+
+静态注册写死在 XML 里，没法在运行时换。需要按条件创建、需要来回替换时，用动态注册。
+
+```java
+FragmentManager fm = getSupportFragmentManager();
+FragmentTransaction transaction = fm.beginTransaction();
+transaction.replace(R.id.fl_container, DynamicFragment.newInstance(...));
+transaction.addToBackStack(null);
+transaction.commit();
+```
+
+`R.id.fl_container` 是一个 `FrameLayout` 之类的容器。`replace()` 会把容器里原有的 Fragment 移除再放入新的；`addToBackStack(null)` 让这次替换可回退，按返回键能回到上一个 Fragment。不调用它，替换就是不可逆的。
+
+**传参必须走 `Bundle`**，不能写在构造函数里：
+
+```java
+public class DynamicFragment extends Fragment {
+    private static final String KEY_POSITION = "position";
+    private static final String KEY_IMAGE_ID = "image_id";
+    private static final String KEY_DESC = "dsc";
+
+    public static DynamicFragment newInstance(int position, int imageId,
+                                              String description) {
+        DynamicFragment fragment = new DynamicFragment();
+        Bundle args = new Bundle();
+        args.putInt(KEY_POSITION, position);
+        args.putInt(KEY_IMAGE_ID, imageId);
+        args.putString(KEY_DESC, description);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.fragment_dynamic, container, false);
+        Bundle args = getArguments();
+        int imageId = args.getInt(KEY_IMAGE_ID, R.drawable.huawei);
+        String desc = args.getString(KEY_DESC);
+
+        ImageView iv = view.findViewById(R.id.iv_dynamic);
+        iv.setImageResource(imageId);
+        ((TextView) view.findViewById(R.id.tv_dynamic)).setText(desc);
+        return view;
+    }
+}
+```
+
+`newInstance` 是官方推荐的工厂写法。原因在重建：横竖屏切换、进程被回收后恢复，系统都用**无参构造**重建 Fragment，构造函数里的参数全部丢失；而 `setArguments()` 存进去的 `Bundle` 会被系统一起保存和恢复。==写死在构造参数里的数据在重建后消失，放进 Bundle 的不会==。
+
+> [!WARNING] `getArguments()` 在 `onCreate` 之前调用返回 `null`
+> `setArguments()` 之后到 `onAttach()` 之间，`getArguments()` 可能还是 `null`。所以取参数的时机最早放在 `onCreate()`，常规做法是 `onCreateView()` 或 `onViewCreated()`。在 `newInstance()` 里取、或者在字段初始化时取，都会踩空。
+
+**`inflate` 的第三个参数**：`inflater.inflate(R.layout.fragment_dynamic, container, false)`。
+
+| 参数 | 含义 |
+|------|------|
+| 第二个 `container` | 父容器，用来生成 `LayoutParams` |
+| 第三个 `false` | 不立即挂到 `container` 上，只返回 View |
+
+传 `true` 时视图会立刻被加进容器，而 Fragment 的视图是由框架统一挂载的，提前挂载会导致重复添加、布局错乱。传 `null` 作 `container`，根布局的 `layout_width="match_parent"` 这类参数就失效了。
+
+### 60.4 用 Fragment 改进启动引导页
+
+[[#45.11 启动引导页]] 把所有页面在适配器构造时一次性 `inflate` 出来，页数一多，启动瞬间就要创建十几份完整视图。换成 Fragment 后，页面由框架按需创建。
+
+```java
+public class LaunchFragment extends Fragment {
+    private static final String KEY_POSITION = "position";
+    private static final String KEY_IMAGE_ID = "image_id";
+    private static final String KEY_COUNT = "count";
+
+    public static LaunchFragment newInstance(int position, int imageId, int count) {
+        LaunchFragment fragment = new LaunchFragment();
+        Bundle args = new Bundle();
+        args.putInt(KEY_POSITION, position);
+        args.putInt(KEY_IMAGE_ID, imageId);
+        args.putInt(KEY_COUNT, count);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.item_launch, container, false);
+        Bundle args = getArguments();
+        int imageId = args.getInt(KEY_IMAGE_ID);
+        int position = args.getInt(KEY_POSITION);
+        int count = args.getInt(KEY_COUNT);
+
+        ((ImageView) view.findViewById(R.id.iv_launch)).setImageResource(imageId);
+
+        Button btnStart = view.findViewById(R.id.btn_start);
+        if (position == count - 1) {
+            btnStart.setVisibility(View.VISIBLE);
+            btnStart.setOnClickListener(v -> {
+                // 跳主页 + 写引导标记
+                // ......
+            });
+        }
+        return view;
+    }
+}
+```
+
+```java
+public class LaunchImproveAdapter extends FragmentPagerAdapter {
+    private final int[] mImageArray;
+
+    public LaunchImproveAdapter(FragmentManager fm, int[] imageArray) {
+        super(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
+        this.mImageArray = imageArray;
+    }
+
+    @NonNull
+    @Override
+    public Fragment getItem(int position) {
+        return LaunchFragment.newInstance(position, mImageArray[position],
+                mImageArray.length);
+    }
+
+    @Override
+    public int getCount() { return mImageArray.length; }
+}
+```
+
+```java
+ViewPager viewPager = findViewById(R.id.vp_launch);
+viewPager.setAdapter(new LaunchImproveAdapter(
+        getSupportFragmentManager(), imageArray));
+```
+
+与 [[#45.11 启动引导页]] 的写法对比，差别集中在三处：
+
+| 维度 | ViewPager + `PagerAdapter` | ViewPager + `FragmentPagerAdapter` |
+|------|---------------------------|-----------------------------------|
+| 页面对象 | 提前 `inflate` 好的 `View` | 按需创建的 `Fragment` |
+| 创建时机 | 适配器构造时一次性全建 | 滑动到附近才创建 |
+| 内存 | 页数 × 完整视图树 | 当前页 + 预加载页 |
+| 末页按钮 | 在适配器里判断 `i == length - 1` | 在 Fragment 里判断 `position == count - 1` |
+| 逻辑归属 | 全挤在适配器 | 每页自己的 Fragment |
+
+**`BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT` 是构造函数的第二个参数**，它决定了预加载页能走到哪个状态：
+
+| 参数 | 预加载页最远走到 |
+|------|-----------------|
+| `BEHAVIOR_SET_USER_VISIBLE_HINT`（旧） | `onResume`，但 `setUserVisibleHint(false)` |
+| `BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT` | `onStart`，只有当前页到 `onResume` |
+
+所以**懒加载必须放在 `onResume()`**。放在 `onStart()` 里，预加载页也会执行，等于没懒加载。
+
+> [!CAUTION] `FragmentPagerAdapter` 只销毁视图，不销毁实例
+> 滑出预加载范围的 Fragment，`FragmentPagerAdapter` 只 detach 它的视图（走 `onDestroyView`），Fragment 实例一直留在 `FragmentManager` 里。页数多、每页又重时，内存会持续累积。真正回收实例的是 `FragmentStatePagerAdapter`（ViewPager 体系）和 `FragmentStateAdapter`（ViewPager2 体系）——它们保存 Fragment 的状态、销毁实例，回来时用 `Bundle` 重建。
+>
+> 另外 `FragmentPagerAdapter` 与 `FragmentStatePagerAdapter` 都已标废弃，新代码用 `ViewPager2` + `FragmentStateAdapter`。
+
+**「立即体验」之后要写引导标记**，否则用户每次启动都会再看一遍：
+
+```java
+SharedPreferences sp = getSharedPreferences("launch", MODE_PRIVATE);
+sp.edit().putBoolean("first_launch_done", true).apply();
+```
+
+下次启动在 `onCreate` 里读这个标记，为 `true` 就直接跳主页。这套「标记 + 判断」的写法在 [[#50.4 记住密码（SP 版）]] 里用过同一套 API。
+
+---
+
+## 65 广播与系统事件
+
+### 65.1 广播是什么
+
+广播是 Android 的一对多消息机制：一方发一条消息，任意数量的接收者各自处理，发送方不知道也不关心谁收到了。==它解决的是「事件发生了，但只有别人知道该做什么」这类问题==。
+
+和其他几种数据传递方式摆在一起看，边界很清楚：
+
+| 方式 | 方向 | 典型用途 |
+|------|------|---------|
+| 广播 `BroadcastReceiver` | 一对多，可跨应用 | 系统事件通知、应用间松耦合通知 |
+| `ContentProvider` | 点对点，可跨应用 | 共享结构化数据（联系人、媒体库） |
+| `Intent` | 点对点，可跨应用 | 启动组件、传参 |
+| `Fragment.setArguments()` | 点对点，进程内 | 给 Fragment 传参 |
+
+典型场景有三个：
+
+- **系统事件**：开机完成、时间变化、网络切换、电量低——系统发，应用收。
+- **跨应用状态同步**：音乐播放器切歌时发广播，其他应用读到当前歌曲。
+- **组件间解耦**：Activity 与 Service 之间不想互相持有引用，用广播传递状态。
+
+发送方调 `sendBroadcast()`，接收方继承 `BroadcastReceiver` 并实现 `onReceive()`。注册方式决定接收者活多久：**动态注册**跟着组件的生命周期走，**静态注册**写进清单、应用没启动也能收到（有限制，见 [[#65.4 广播的静态注册]]）。
+
+广播不适合传大块数据。`Intent` 携带的数据会经过 Binder，有大小限制（约 1 MB），超了直接抛 `TransactionTooLargeException`。
+
+### 65.2 标准广播与动态注册
+
+标准广播（normal broadcast）又叫无序广播：所有匹配的接收者都会收到，但**投递顺序没有保证**，也不保证一定有人收。
+
+三步走：发、收、注册。
+
+```java
+public class StandardActivity extends AppCompatActivity {
+    public static final String ACTION_STANDARD =
+            "com.example.broadcast.STANDARD_ACTION";
+
+    private final BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && ACTION_STANDARD.equals(intent.getAction())) {
+                String msg = intent.getStringExtra("msg");
+                // ......
+            }
+        }
+    };
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        IntentFilter filter = new IntentFilter(ACTION_STANDARD);
+        ContextCompat.registerReceiver(this, receiver, filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        unregisterReceiver(receiver);
+    }
+
+    private void send() {
+        Intent intent = new Intent(ACTION_STANDARD);
+        intent.putExtra("msg", "hello");
+        sendBroadcast(intent);
+    }
+}
+```
+
+**自定义 action 用反域名**：`com.example.broadcast.STANDARD_ACTION`，而不是裸的 `"STANDARD_ACTION"`。裸字符串很容易和其他应用撞名，一撞就串台。
+
+**注册与注销必须成对**：`onStart` 注册、`onStop` 注销。只在 `onCreate` 注册却从不注销，接收者会一直挂在系统里，持有 Activity 引用，泄漏。
+
+> [!CAUTION] targetSdk 33 起动态注册必须声明导出标志
+> Android 13（API 33）起，应用 `targetSdk ≥ 33` 时动态注册接收者必须显式指定 `RECEIVER_EXPORTED` 或 `RECEIVER_NOT_EXPORTED`，否则抛 `SecurityException`。用 `ContextCompat.registerReceiver(...)` 传标志位能兼容低版本；直接调 `registerReceiver(receiver, filter)` 在 33+ 上会崩。
+>
+> 只收本应用发出的广播时一律用 `RECEIVER_NOT_EXPORTED`——声明成 `EXPORTED` 等于把入口开放给所有应用。
+
+**`onReceive()` 跑在主线程**，有约 10 秒的执行窗口。里面不能做网络请求、不能读大文件，耗时任务必须转 `Handler`、线程或 `WorkManager`。超时的后果不是崩溃，而是 ANR。
+
+### 65.3 有序广播
+
+有序广播按优先级**逐个**投递，前一个处理完才轮到下一个，而且中途可以截断。
+
+```java
+// 发送：第二个参数是接收方必须持有的权限，不需要就传 null
+sendOrderedBroadcast(intent, null);
+```
+
+接收顺序由 `IntentFilter.setPriority(int)` 决定，数值大的先收；优先级相同时，先注册的先收。
+
+```java
+IntentFilter filter = new IntentFilter(ACTION_ORDERED);
+filter.setPriority(100);   // 有效范围 -1000 ~ 1000
+ContextCompat.registerReceiver(this, receiver, filter,
+        ContextCompat.RECEIVER_NOT_EXPORTED);
+```
+
+**截断**：接收者里调 `abortBroadcast()`，后面的接收者就收不到了。
+
+```java
+@Override
+public void onReceive(Context context, Intent intent) {
+    if (shouldStopHere) {
+        abortBroadcast();   // 只对有序广播有效
+    }
+}
+```
+
+`abortBroadcast()` 用在标准广播上没有任何效果——标准广播是「发完就不管」，没有「后面的人」这个概念。
+
+| 维度 | 标准广播 | 有序广播 |
+|------|---------|---------|
+| 发送 API | `sendBroadcast(Intent)` | `sendOrderedBroadcast(Intent, permission)` |
+| 投递顺序 | 不保证 | 按 `priority` 从高到低 |
+| 能否截断 | 否 | `abortBroadcast()` |
+| 能否传结果 | 否 | `setResultCode()` / `setResultData()` / `setResultExtras()` |
+| 适用场景 | 通知、状态同步 | 需要拦截或多级处理的场景 |
+
+有序广播可以链式传递结果：前一个接收者 `setResultData("x")`，后一个用 `getResultData()` 读。这个能力在系统里用于「拦截短信」这类需要多级决策的场景。
+
+> [!NOTE] 优先级只对动态注册可靠
+> 清单里写的 `android:priority` 在 Android 8.0 之后对隐式广播基本失效——因为清单接收者本身就收不到大多数隐式广播了（见 [[#65.4 广播的静态注册]]）。要在应用内做有序处理，用动态注册。
+
+### 65.4 广播的静态注册
+
+静态注册把接收者写进清单，应用没运行也能被系统拉起来。
+
+```xml
+<receiver
+    android:name=".ShockReceiver"
+    android:enabled="true"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="com.example.broadcast.SHOCK_ACTION" />
+    </intent-filter>
+</receiver>
+```
+
+```java
+public class ShockReceiver extends BroadcastReceiver {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        Vibrator vibrator = (Vibrator) context.getSystemService(
+                Context.VIBRATOR_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(
+                    500, VibrationEffect.DEFAULT_AMPLITUDE));
+        } else {
+            vibrator.vibrate(500);
+        }
+    }
+}
+```
+
+```xml
+<uses-permission android:name="android.permission.VIBRATE" />
+```
+
+发送方用显式方式指定目标，避免被其他应用的同名 action 干扰：
+
+```java
+Intent intent = new Intent("com.example.broadcast.SHOCK_ACTION");
+intent.setComponent(new ComponentName(
+        "com.example.app", "com.example.app.ShockReceiver"));
+sendBroadcast(intent);
+```
+
+也可以用 `new Intent(context, ShockReceiver.class)` 或 `intent.setPackage("com.example.app")`，效果一样：把「广播给谁」从「按 action 匹配」变成「点名送达」。
+
+> [!WARNING] Android 8.0 起清单接收者收不到大多数隐式广播
+> 从 API 26 开始，除了一份系统豁免白名单，清单注册的接收者**不再接收隐式广播**。这不是「不推荐」，是「收不到」。想送达有三条路：
+>
+> 1. 用 `setComponent()` / `setPackage()` 把广播变成显式；
+> 2. 改用动态注册（应用在前台时有效）；
+> 3. 目标 action 在白名单里（如 `ACTION_BOOT_COMPLETED`、`ACTION_MY_PACKAGE_REPLACED`）。
+>
+> 另外 API 31 起，凡是带 `<intent-filter>` 的组件都必须显式写 `android:exported`，不写直接构建失败。声明成 `true` 意味着任何应用都能向这个接收者发广播，只在本应用内用的应该写 `false`。
+
+**震动 API 的版本分叉**：`vibrate(long)` 自 API 26 废弃，新写法是 `VibrationEffect.createOneShot(时长, 振幅)`。`VIBRATE` 权限漏了不会编译报错，只是 Lint 警告，运行时抛 `SecurityException`。模拟器没有马达，这段代码在模拟器上跑不出效果，别以为没生效。
+
+### 65.5 系统分钟到达广播
+
+系统广播由系统发出，开发者只负责接。第一个例子是「每分钟到达」：
+
+```java
+public static final String ACTION_TIME_TICK = "android.intent.action.TIME_TICK";
+```
+
+常量就在 `Intent` 里：`Intent.ACTION_TIME_TICK`。系统在每个整分发出一次，不需要任何权限。
+
+```java
+@Override
+protected void onStart() {
+    super.onStart();
+    IntentFilter filter = new IntentFilter(Intent.ACTION_TIME_TICK);
+    ContextCompat.registerReceiver(this, timeReceiver, filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED);
+}
+```
+
+> [!NOTE] `ACTION_TIME_TICK` 只能动态注册
+> 写进清单永远收不到——系统明确不向清单接收者投递这条广播。这是设计如此，不是配置问题。同理，`ACTION_TIME_CHANGED`（用户改了系统时间）、`ACTION_TIMEZONE_CHANGED`（改了时区）也都是动态注册。
+
+三个使用限制：
+
+- **只在设备唤醒时投递**。灭屏进入 Doze 后不保证按时送达。
+- **进程必须存活**。应用被杀掉，接收者跟着消失。
+- **精度只到分钟**，且对齐系统时钟，不能当秒级定时器用。
+
+需要秒级、需要在灭屏时也准时，用 [[#70.1 AlarmManager 定时管理器]]；需要「大约每 N 分钟做一次、允许延迟」的后台任务，用 `WorkManager`。
+
+### 65.6 系统网络变更广播
+
+网络切换是个高频场景：WiFi 断开切到移动数据，视频要不要暂停、要不要提示「当前非 WiFi 网络」。
+
+**旧写法**（已全面废弃）：
+
+```java
+// 不要这么写
+IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+NetworkInfo info = intent.getParcelableExtra(ConnectivityManager.EXTRA_NETWORK_INFO);
+String type = info.getTypeName();   // "WIFI" / "MOBILE"
+```
+
+```xml
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+```
+
+`NetworkInfo`、`EXTRA_NETWORK_INFO`、`CONNECTIVITY_ACTION` 在 API 23–28 之间陆续废弃，targetSdk 29+ 上那个 extra 直接返回 `null`。
+
+**现行写法**是 `NetworkCallback`：
+
+```java
+ConnectivityManager cm = (ConnectivityManager)
+        getSystemService(Context.CONNECTIVITY_SERVICE);
+
+NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
+    @Override
+    public void onAvailable(@NonNull Network network) {
+        // 网络可用
+    }
+
+    @Override
+    public void onLost(@NonNull Network network) {
+        // 网络断开
+    }
+
+    @Override
+    public void onCapabilitiesChanged(@NonNull Network network,
+                                      @NonNull NetworkCapabilities caps) {
+        boolean isWifi = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+        boolean isCellular = caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
+        boolean isMetered = !caps.hasCapability(
+                NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+        // ......
+    }
+};
+
+@Override
+protected void onStart() {
+    super.onStart();
+    cm.registerDefaultNetworkCallback(callback);
+}
+
+@Override
+protected void onStop() {
+    super.onStop();
+    cm.unregisterNetworkCallback(callback);
+}
+```
+
+`registerDefaultNetworkCallback` 只在**默认网络**变化时回调，比监听所有网络更省电、更符合「应用关心的就是当前默认网络」这个事实。
+
+> [!WARNING] 判断「能不能上网」不能只看 `onAvailable`
+> 连上了 WiFi 不等于能上网——酒店、机场的认证页就属于「连上了但没有外网」。要用 `NetworkCapabilities.NET_CAPABILITY_VALIDATED` 判断系统是否真的验证过连通性。另外 `getTypeName()` 返回的是大写 `"WIFI"` / `"MOBILE"`，靠字符串比对判断网络类型既脆弱又拿不到 5G 这类细分类型，一律改用 `hasTransport()`。
+
+`ACCESS_NETWORK_STATE` 是普通权限，装包时自动授予，不需要运行时申请。这一点和 [[#55.5 运行时权限]] 讲的危险权限不同。
+
+---
+
+## 70 定时与界面事件
+
+### 70.1 AlarmManager 定时管理器
+
+`AlarmManager` 是系统级定时器：到点由系统发一个 `PendingIntent`，即使应用没在运行也能触发。
+
+```java
+AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+
+Intent intent = new Intent(this, AlarmReceiver.class);
+intent.setAction("com.example.app.ALARM_ACTION");
+PendingIntent pi = PendingIntent.getBroadcast(this, 0, intent,
+        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+// 1 秒后触发，且能唤醒设备
+am.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 1000, pi);
+```
+
+四种类型决定「时间基准」和「是否唤醒」：
+
+| 常量 | 时间基准 | 唤醒设备 | 适用场景 |
+|------|---------|---------|---------|
+| `RTC_WAKEUP` | 墙钟时间（`System.currentTimeMillis()`） | 是 | 闹钟、指定时刻的提醒 |
+| `RTC` | 墙钟时间 | 否 | 不要求准时的时刻任务 |
+| `ELAPSED_REALTIME_WAKEUP` | 开机后经过的时间（`SystemClock.elapsedRealtime()`） | 是 | 倒计时、间隔任务 |
+| `ELAPSED_REALTIME` | 开机后经过的时间 | 否 | 不要求准时的间隔任务 |
+
+**循环任务不要用 `setRepeating()`**。它在 API 19 起就不精确了，而且在 Doze 下会被整体推迟。标准做法是在 `onReceive` 里再设一次：
+
+```java
+public class AlarmReceiver extends BroadcastReceiver {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        // 干活
+        // ......
+        // 续期下一次
+        setNextAlarm(context);
+    }
+}
+```
+
+> [!CAUTION] 精确闹钟从 Android 12 起要申请权限
+> `setExact()`、`setExactAndAllowWhileIdle()`、`setAlarmClock()` 在 API 31 起需要 `SCHEDULE_EXACT_ALARM` 权限，Android 13 起该权限**默认不授予**。调用前先判断：
+>
+> ```java
+> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+>         && !am.canScheduleExactAlarms()) {
+>     // 引导用户去设置页授权
+>     startActivity(new Intent(
+>             Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM));
+>     return;
+> }
+> ```
+>
+> 不判断直接调，抛 `SecurityException`。只做「提醒类」而非「闹钟类」功能时，用 `setWindow()` 或 `WorkManager` 更省事，不必申请这个权限。
+
+**`RTC_WAKEUP` 唤不醒关机的设备**。它只能把设备从休眠（suspend）状态唤醒，让 CPU 跑起来发广播。设备关机后闹钟本身就不存在了——「关机闹钟」是厂商在 RTC 硬件层做的功能，不是 `AlarmManager` 的能力。同理，设备重启后所有已设的闹钟全部丢失，需要监听 `ACTION_BOOT_COMPLETED` 重新设置。
+
+三个实现细节：
+
+- **`PendingIntent` 的 flag 必须显式**。Android 12 起不写 `FLAG_IMMUTABLE` 或 `FLAG_MUTABLE` 直接崩。
+- **`requestCode` 与 `Intent` 共同决定 PendingIntent 的唯一性**。两者都一样时，新的一定会覆盖旧的。
+- **传 `ApplicationContext` 而不是 Activity**。`PendingIntent` 会被系统长期持有，拿 Activity 当上下文就是泄漏。
+
+### 70.2 竖屏与横屏切换
+
+默认情况下，旋转屏幕会**销毁并重建 Activity**：
+
+```
+onPause → onStop → onDestroy → onCreate → onStart → onResume
+```
+
+重建意味着所有成员变量清零、所有 `findViewById` 重来。界面能自动适配时这没问题，但播放器、相机预览、正在输入的草稿会中断。
+
+**方案一：接受重建，把状态存好**。`onSaveInstanceState()` 存临时状态，`onCreate` 里从 `savedInstanceState` 取回。这是最稳的做法，也是官方推荐。
+
+**方案二：阻止重建，自己处理**。清单里声明要接管的配置项：
+
+```xml
+<activity
+    android:name=".OrientationActivity"
+    android:configChanges="orientation|screenSize|screenLayout" />
+```
+
+```java
+@Override
+public void onConfigurationChanged(@NonNull Configuration newConfig) {
+    super.onConfigurationChanged(newConfig);
+    if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+        // 横屏布局调整
+    } else if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
+        // 竖屏布局调整
+    }
+}
+```
+
+> [!WARNING] 只写 `orientation` 不够，必须同时写 `screenSize`
+> Android 3.2（API 13）起，屏幕尺寸变化也单独算一个配置项。只声明 `orientation` 时，系统发现 `screenSize` 也变了，照样重建 Activity——回调根本不进 `onConfigurationChanged`。标准写法是 `orientation|screenSize`，再加 `screenLayout` 覆盖多窗口场景。
+>
+> 另外，声明了 `configChanges` 之后，**没声明的配置项变化仍会重建**。而且回调里不要重新 `setContentView()`，视图树还在，重设会丢状态。
+
+**方案三：锁死方向**：
+
+```xml
+<activity android:screenOrientation="portrait" />
+```
+
+常用取值：`portrait`（竖）、`landscape`（横）、`sensor`（跟随传感器）、`user`（跟随用户锁定）、`nosensor`（不跟随传感器）、`unspecified`（交给系统）。
+
+Android 16（API 36）起，最小宽度 ≥ 600dp 的大屏设备会忽略 `screenOrientation` 限制——应用在大屏上强制竖屏不再生效，除非显式声明退出该行为。这是为了让平板和折叠屏能正常旋转。
+
+### 70.3 回到桌面与画中画
+
+用户按 Home 键或最近任务键时，系统会发一条广播：
+
+```java
+public static final String ACTION_CLOSE_SYSTEM_DIALOGS =
+        "android.intent.action.CLOSE_SYSTEM_DIALOGS";
+```
+
+附带一个 `"reason"` extra，取值 `"homekey"`（回到桌面）或 `"recentapps"`（切到任务列表）。
+
+```java
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_pip);
+    IntentFilter filter = new IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
+    ContextCompat.registerReceiver(this, receiver, filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED);
+}
+
+@Override
+protected void onDestroy() {
+    super.onDestroy();
+    unregisterReceiver(receiver);
+}
+```
+
+**注册时机很关键**：必须 `onCreate` 注册、`onDestroy` 注销。放在 `onStart`/`onStop` 里，按 Home 时 `onStop` 已经执行完，接收者被注销，广播就收不到了。
+
+> [!TIP] 判「用户离开了页面」用 `onUserLeaveHint()` 更可靠
+> `CLOSE_SYSTEM_DIALOGS` 是系统内部广播，Android 12 起在部分 ROM 上不再派发 `homekey`。官方推荐的做法是重写 `Activity.onUserLeaveHint()`——它在用户主动离开（按 Home、切任务、启动其他应用）时调用，`isFinishing()` 返回 `false` 就说明是「离开而非退出」。
+
+**画中画**（Picture-in-Picture）在 API 26 起支持，让 Activity 缩成一个小窗口悬浮在别的应用之上。
+
+```xml
+<activity
+    android:name=".PipActivity"
+    android:supportsPictureInPicture="true"
+    android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" />
+```
+
+`supportsPictureInPicture` 打开能力，`configChanges` 四个值缺一不可——少一个，进入画中画时就会重建 Activity，视频直接黑屏。
+
+```java
+private void enterPip() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            && !isInPictureInPictureMode()) {
+        PictureInPictureParams params = new PictureInPictureParams.Builder()
+                .setAspectRatio(new Rational(16, 9))
+                .build();
+        enterPictureInPictureMode(params);
+    }
+}
+
+@Override
+public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode,
+                                          @NonNull Configuration newConfig) {
+    super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+    if (isInPictureInPictureMode) {
+        // 隐藏多余控件
+    } else {
+        // 恢复全屏 UI
+    }
+}
+```
+
+状态流转：
+
+```mermaid
+stateDiagram-v2
+  state "前台全屏" as Full
+  state "画中画" as Pip
+  [*] --> Full
+  Full --> Pip: enterPictureInPictureMode
+  Pip --> Full: 点击小窗展开
+  Pip --> [*]: 关闭小窗
+```
+
+`onPictureInPictureModeChanged` 里切换 UI：画中画窗口很小，标题栏、按钮、弹幕这些都该隐藏，只留视频画面。
+
+三条硬约束：
+
+- **宽高比必须在 1:2.39 到 2.39:1 之间**，越界抛 `IllegalArgumentException`。
+- **Activity 必须在前台**才能进入画中画，在后台调用无效。
+- **单参版本 `onPictureInPictureModeChanged(boolean)` 已废弃**，必须重写带 `Configuration` 的双参版本。
+
+---
+
 ## 附录
 
 ### A. API Level 与版本代号
@@ -4693,3 +6383,36 @@ PackageInfo info = pm.getPackageArchiveInfo(
 | 查系统图片 | `MediaStore.Images.Media.EXTERNAL_CONTENT_URI` |
 | 跨应用传文件 | `FileProvider.getUriForFile()` + `file_paths.xml` 白名单 |
 | 装 APK | `ACTION_VIEW` + `application/vnd.android.package-archive` |
+
+### D. 列表与适配器速查
+
+| 场景 | 关键 API |
+|------|---------|
+| 纯文本下拉 | `new ArrayAdapter<>(ctx, R.layout.item_select, array)` + `setAdapter` |
+| 图标 + 文本 | `SimpleAdapter(ctx, list, layout, from[], to[])`，两个数组按下标对应 |
+| 任意布局 | `BaseAdapter` 四方法：`getCount` / `getItem` / `getItemId` / `getView` |
+| 复用条目 | `convertView == null` 才 `inflate`，`ViewHolder` 挂 `setTag`，数据在分支外绑定 |
+| 去掉分隔线 | `android:divider="@null"` + `android:dividerHeight="0dp"` |
+| 去掉按压背景 | `android:listSelector="@android:color/transparent"` |
+| 条目里放按钮 | 条目根节点 `android:descendantFocusability="blocksDescendants"` |
+| 网格排布 | `numColumns` + `horizontalSpacing` + `stretchMode` |
+| 左右翻页 | `ViewPager` + `PagerAdapter` 四方法（`instantiateItem` / `destroyItem` / `isViewFromObject` / `getCount`） |
+| 翻页标签 | `PagerTabStrip` + 适配器重写 `getPageTitle()` |
+
+### E. 广播与定时速查
+
+| 场景 | 关键 API |
+|------|---------|
+| 发标准广播 | `sendBroadcast(intent)`，接收方顺序不定 |
+| 发有序广播 | `sendOrderedBroadcast(intent, permission)` + `filter.setPriority()` |
+| 截断有序广播 | `abortBroadcast()`，对标准广播无效 |
+| 动态注册 | `ContextCompat.registerReceiver(ctx, r, filter, RECEIVER_NOT_EXPORTED)`，`onStart` 注册 / `onStop` 注销 |
+| 静态注册 | 清单 `<receiver>` + `<intent-filter>`；API 31 起必须写 `android:exported` |
+| 送达清单接收者 | `setComponent()` / `setPackage()` / `new Intent(ctx, Receiver.class)` |
+| 每分钟事件 | `Intent.ACTION_TIME_TICK`，只能动态注册 |
+| 网络变化 | `registerDefaultNetworkCallback(NetworkCallback)`，用 `hasTransport()` 判类型 |
+| 定时任务 | `AlarmManager.set(RTC_WAKEUP, time, pendingIntent)` |
+| 精确闹钟 | `setExactAndAllowWhileIdle()` + `SCHEDULE_EXACT_ALARM` 权限 + `canScheduleExactAlarms()` |
+| 屏幕旋转不重建 | `android:configChanges="orientation\|screenSize"` + `onConfigurationChanged()` |
+| 画中画 | `supportsPictureInPicture="true"` + `enterPictureInPictureMode(params)` |
+| 判断用户离开 | `onUserLeaveHint()`，比监听 `CLOSE_SYSTEM_DIALOGS` 可靠 |
