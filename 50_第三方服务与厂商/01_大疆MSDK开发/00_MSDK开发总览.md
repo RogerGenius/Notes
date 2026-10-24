@@ -6,7 +6,7 @@ tags:
   - 生态/移动
   - 生态/大疆MSDK
 created: 2026-10-21
-updated: 2026-10-22
+updated: 2026-10-24
 source: DJI Mobile SDK V5 官方 API 文档 + SampleCode-V5（MSDK 5.18.0）
 ---
 
@@ -49,8 +49,9 @@ KeyManager.getInstance().listen(key, holder, listener);  // 监听变化
 | [[06_媒体文件与直播推流]] | 相册列表、缩略图、原图下载、回放，RTMP/GB28181 直播 | `IMediaManager`、`ILiveStreamManager` |
 | [[07_航点任务与智能飞行]] | KMZ 航线上传/执行/断点续飞，智能跟随、POI、FlyTo、探照灯 | `WaypointMissionManager`、`IntelligentFlightManager` |
 | [[08_RTK与飞行安全]] | 机载 RTK、网络 RTK、基站，限飞区、飞行警告 | `RTKCenter`、`FlyZoneManager` |
-| [[09_设备维护与负载扩展]] | 固件升级、模拟器、避障感知、第三方负载、喊话器、日志 | `UpgradeManager`、`PerceptionManager`、`PayloadCenter` |
+| [[09_设备维护与负载扩展]] | 固件升级、模拟器、避障感知、喊话器、日志 | `UpgradeManager`、`PerceptionManager`、`MegaphoneManager` |
 | [[10_uxsdk界面搭建]] | 用现成 Widget 快速拼出完整飞行界面 | `FPVWidget`、`CameraControlsWidget`、`MapWidget` |
+| [[11_第三方负载开发]] | 第三方负载的基础信息、Widget 控件、透传、管道、负载相机、妙算 | `PayloadCenter`、`IPayloadManager`、`PipelineManager` |
 
 ## 三、典型调用链（写代码前先想清楚顺序）
 
